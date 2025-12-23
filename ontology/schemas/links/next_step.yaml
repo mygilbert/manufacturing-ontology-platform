@@ -1,0 +1,74 @@
+# NEXT_STEP Link Type
+# Process 간의 순서 관계
+
+linkType: NEXT_STEP
+version: "1.0.0"
+description: "공정 단계 간의 순서 관계 (다음 단계)"
+
+# 관계 방향
+source:
+  objectType: Process
+  cardinality: 1  # 하나의 공정에서
+
+target:
+  objectType: Process
+  cardinality: N  # 여러 다음 단계로 분기 가능
+
+# Edge 속성
+properties:
+  route_id:
+    type: string
+    description: "공정 경로 ID"
+    required: true
+
+  is_default:
+    type: boolean
+    description: "기본 경로 여부"
+    default: true
+
+  branch_condition:
+    type: string
+    description: "분기 조건 (표현식)"
+    required: false
+    example: "yield > 95"
+
+  branch_type:
+    type: enum
+    description: "분기 유형"
+    values:
+      - SEQUENTIAL   # 순차
+      - PARALLEL     # 병렬
+      - CONDITIONAL  # 조건부
+      - REWORK       # 재작업
+    default: "SEQUENTIAL"
+
+  transition_time:
+    type: float
+    description: "전환 시간 (분)"
+    required: false
+    unit: "minutes"
+
+  queue_limit:
+    type: integer
+    description: "대기 한계 시간 (분)"
+    required: false
+
+# 제약 조건
+constraints:
+  - type: no_cycle
+    description: "순환 참조 불가 (DAG 유지)"
+
+# 인덱스
+indexes:
+  - fields: [route_id]
+  - fields: [is_default]
+  - fields: [branch_type]
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_ROUTE_STEP"
+    columnMapping:
+      route_id: "ROUTE_ID"
+      is_default: "DEFAULT_FLAG"
+      transition_time: "TRANS_TIME"

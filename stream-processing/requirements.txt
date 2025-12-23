@@ -1,0 +1,32 @@
+# Flink Stream Processing 의존성
+
+# Apache Flink
+apache-flink==1.18.0
+apache-flink-libraries==1.18.0
+
+# Kafka 연동
+confluent-kafka>=2.3.0
+
+# PostgreSQL
+psycopg2-binary>=2.9.9
+
+# Redis (상태 저장)
+redis>=5.0.0
+
+# 데이터 처리
+pandas>=2.0.0
+numpy>=1.24.0
+
+# 시간 처리
+python-dateutil>=2.8.2
+
+# 설정
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+
+# 로깅/모니터링
+structlog>=23.2.0
+prometheus-client>=0.19.0
+
+# 타입 힌트
+typing-extensions>=4.8.0

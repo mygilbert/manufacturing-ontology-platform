@@ -1,0 +1,64 @@
+{
+  "name": "spc-sqlserver-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.sqlserver.SqlServerConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "${SPC_SQLSERVER_HOST}",
+    "database.port": "${SPC_SQLSERVER_PORT:-1433}",
+    "database.user": "${SPC_SQLSERVER_USER}",
+    "database.password": "${SPC_SQLSERVER_PASSWORD}",
+    "database.names": "${SPC_SQLSERVER_DB}",
+    "topic.prefix": "spc",
+
+    "table.include.list": "dbo.SPC_MEASUREMENT,dbo.SPC_ALARM_LOG,dbo.SPC_PROCESS_SPEC,dbo.SPC_CONTROL_CHART",
+
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:29092",
+    "schema.history.internal.kafka.topic": "spc.schema-changes",
+
+    "include.schema.changes": "true",
+    "snapshot.mode": "initial",
+
+    "decimal.handling.mode": "double",
+    "time.precision.mode": "connect",
+
+    "tombstones.on.delete": "false",
+    "provide.transaction.metadata": "true",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+
+    "transforms": "unwrap,route,addMetadata,convertTimestamp",
+
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.add.fields": "op,table,source.ts_ms",
+
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": "spc\\.[^.]+\\.dbo\\.(.*)",
+    "transforms.route.replacement": "spc.$1",
+
+    "transforms.addMetadata.type": "org.apache.kafka.connect.transforms.InsertField$Value",
+    "transforms.addMetadata.static.field": "source_system",
+    "transforms.addMetadata.static.value": "SPC",
+
+    "transforms.convertTimestamp.type": "org.apache.kafka.connect.transforms.TimestampConverter$Value",
+    "transforms.convertTimestamp.target.type": "Timestamp",
+    "transforms.convertTimestamp.field": "MEAS_TIME",
+    "transforms.convertTimestamp.format": "yyyy-MM-dd HH:mm:ss.SSS",
+
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true",
+    "errors.deadletterqueue.topic.name": "spc.dlq",
+    "errors.deadletterqueue.topic.replication.factor": "1",
+
+    "heartbeat.interval.ms": "10000",
+    "poll.interval.ms": "1000",
+    "max.batch.size": "2048",
+    "max.queue.size": "8192"
+  }
+}

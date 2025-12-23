@@ -1,0 +1,175 @@
+# Process Object Type
+# 공정 단계를 나타내는 온톨로지 객체
+
+objectType: Process
+version: "1.0.0"
+description: "제조 공정의 개별 단계"
+
+# 기본 키
+primaryKey: process_id
+
+# 속성 정의
+properties:
+  process_id:
+    type: string
+    description: "공정 고유 식별자"
+    required: true
+    indexed: true
+    example: "PROC-ETCH-001"
+
+  name:
+    type: string
+    description: "공정명"
+    required: true
+    example: "Oxide Etch"
+
+  category:
+    type: enum
+    description: "공정 대분류"
+    required: true
+    values:
+      - PHOTO        # 포토
+      - ETCH         # 식각
+      - DIFFUSION    # 확산
+      - THIN_FILM    # 박막
+      - CMP          # CMP
+      - IMPLANT      # 이온주입
+      - METROLOGY    # 계측
+      - CLEANING     # 세정
+      - PACKAGING    # 패키징
+      - TEST         # 테스트
+    example: "ETCH"
+
+  sequence:
+    type: integer
+    description: "공정 순서"
+    required: true
+    min: 1
+    example: 10
+
+  route_id:
+    type: string
+    description: "소속 공정 경로 ID"
+    required: true
+    example: "ROUTE-DRAM-001"
+
+  target_cycle_time:
+    type: float
+    description: "목표 사이클 타임 (분)"
+    required: false
+    unit: "minutes"
+    example: 30.0
+
+  spec_limits:
+    type: object
+    description: "규격 한계"
+    required: false
+    properties:
+      usl:
+        type: float
+        description: "상한 규격 (Upper Spec Limit)"
+      lsl:
+        type: float
+        description: "하한 규격 (Lower Spec Limit)"
+      target:
+        type: float
+        description: "목표값"
+
+  control_limits:
+    type: object
+    description: "관리 한계 (SPC)"
+    required: false
+    properties:
+      ucl:
+        type: float
+        description: "상한 관리 한계 (Upper Control Limit)"
+      lcl:
+        type: float
+        description: "하한 관리 한계 (Lower Control Limit)"
+      center:
+        type: float
+        description: "중심선"
+
+  is_critical:
+    type: boolean
+    description: "핵심 공정 여부"
+    required: true
+    default: false
+
+  is_bottleneck:
+    type: boolean
+    description: "병목 공정 여부"
+    required: false
+    default: false
+
+  spc_enabled:
+    type: boolean
+    description: "SPC 모니터링 활성화 여부"
+    required: true
+    default: true
+
+  required_equipment_types:
+    type: array
+    items:
+      type: string
+    description: "필요한 설비 유형 목록"
+    example: ["DRY_ETCH", "WET_ETCH"]
+
+# 관계 정의
+outgoingLinks:
+  - linkType: USES_RECIPE
+    targetObject: Recipe
+    description: "이 공정에서 사용하는 레시피"
+    cardinality: "1:N"
+
+  - linkType: PERFORMED_AT
+    targetObject: Equipment
+    description: "이 공정을 수행할 수 있는 설비"
+    cardinality: "1:N"
+
+  - linkType: NEXT_STEP
+    targetObject: Process
+    description: "다음 공정 단계"
+    cardinality: "1:N"
+
+  - linkType: HAS_MEASUREMENT_SPEC
+    targetObject: MeasurementSpec
+    description: "이 공정의 측정 규격"
+
+incomingLinks:
+  - linkType: PREV_STEP
+    sourceObject: Process
+    description: "이전 공정 단계"
+
+# 인덱스
+indexes:
+  - fields: [process_id]
+    unique: true
+  - fields: [route_id, sequence]
+    unique: true
+  - fields: [category]
+    unique: false
+  - fields: [is_critical]
+    unique: false
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_PROCESS_MASTER"
+    keyColumn: "PROCESS_ID"
+    columnMapping:
+      process_id: "PROCESS_ID"
+      name: "PROCESS_NAME"
+      category: "PROCESS_TYPE"
+      sequence: "SEQ_NO"
+      route_id: "ROUTE_ID"
+      target_cycle_time: "TARGET_CT"
+  spc:
+    table: "SPC_PROCESS_SPEC"
+    keyColumn: "PROCESS_ID"
+    columnMapping:
+      spec_limits.usl: "USL"
+      spec_limits.lsl: "LSL"
+      spec_limits.target: "TARGET"
+      control_limits.ucl: "UCL"
+      control_limits.lcl: "LCL"

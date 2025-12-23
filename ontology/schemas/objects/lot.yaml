@@ -1,0 +1,184 @@
+# Lot Object Type
+# 생산 단위(Lot)를 나타내는 온톨로지 객체
+
+objectType: Lot
+version: "1.0.0"
+description: "제조 공정의 생산 단위 (웨이퍼 그룹)"
+
+# 기본 키
+primaryKey: lot_id
+
+# 속성 정의
+properties:
+  lot_id:
+    type: string
+    description: "Lot 고유 식별자"
+    required: true
+    indexed: true
+    example: "LOT20231201001"
+
+  product_code:
+    type: string
+    description: "제품 코드"
+    required: true
+    indexed: true
+    example: "DRAM-8Gb-DDR5"
+
+  product_name:
+    type: string
+    description: "제품명"
+    required: false
+    example: "8Gb DDR5 SDRAM"
+
+  quantity:
+    type: integer
+    description: "Lot 내 웨이퍼 수량"
+    required: true
+    default: 25
+    min: 1
+    max: 50
+
+  priority:
+    type: enum
+    description: "우선순위"
+    required: true
+    values:
+      - SUPER_HOT  # 최우선
+      - HOT        # 긴급
+      - NORMAL     # 일반
+      - HOLD       # 보류
+    default: "NORMAL"
+
+  status:
+    type: enum
+    description: "Lot 상태"
+    required: true
+    values:
+      - WAIT       # 대기
+      - RUN        # 처리 중
+      - COMP       # 완료
+      - HOLD       # 보류
+      - SCRAPPED   # 폐기
+    default: "WAIT"
+
+  current_step:
+    type: string
+    description: "현재 공정 단계"
+    required: false
+    example: "ETCH-01"
+
+  total_steps:
+    type: integer
+    description: "전체 공정 단계 수"
+    required: false
+
+  start_time:
+    type: datetime
+    description: "Lot 생성 시간"
+    required: true
+
+  end_time:
+    type: datetime
+    description: "Lot 완료 시간"
+    required: false
+
+  target_out_date:
+    type: datetime
+    description: "목표 출하일"
+    required: false
+
+  customer:
+    type: string
+    description: "고객사"
+    required: false
+
+  fab_id:
+    type: string
+    description: "FAB 식별자"
+    required: true
+    example: "FAB1"
+
+  route_id:
+    type: string
+    description: "공정 경로 ID"
+    required: true
+    example: "ROUTE-DRAM-001"
+
+  owner:
+    type: string
+    description: "담당자"
+    required: false
+
+  comments:
+    type: string
+    description: "비고"
+    required: false
+
+# 관계 정의
+outgoingLinks:
+  - linkType: CONTAINS_WAFER
+    targetObject: Wafer
+    description: "이 Lot에 포함된 웨이퍼"
+    cardinality: "1:N"
+
+  - linkType: PROCESSED_AT
+    targetObject: Equipment
+    description: "처리된 설비"
+
+  - linkType: FOLLOWS_ROUTE
+    targetObject: Process
+    description: "따르는 공정 경로"
+
+incomingLinks:
+  - linkType: PRODUCES
+    sourceObject: Recipe
+    description: "이 Lot을 생산하는 레시피"
+
+# 집계/파생 속성
+derivedProperties:
+  cycle_time:
+    type: duration
+    description: "사이클 타임 (end_time - start_time)"
+    formula: "end_time - start_time"
+
+  good_wafer_count:
+    type: integer
+    description: "양품 웨이퍼 수"
+    aggregation:
+      from: Wafer
+      filter: "status = 'GOOD'"
+      function: "COUNT"
+
+  yield:
+    type: float
+    description: "수율 (%)"
+    formula: "(good_wafer_count / quantity) * 100"
+
+# 인덱스
+indexes:
+  - fields: [lot_id]
+    unique: true
+  - fields: [product_code, status]
+    unique: false
+  - fields: [start_time]
+    unique: false
+  - fields: [current_step]
+    unique: false
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_LOT_MASTER"
+    keyColumn: "LOT_ID"
+    columnMapping:
+      lot_id: "LOT_ID"
+      product_code: "PRODUCT_ID"
+      product_name: "PRODUCT_NAME"
+      quantity: "LOT_QTY"
+      priority: "PRIORITY_CODE"
+      status: "LOT_STATUS"
+      current_step: "CURR_STEP_ID"
+      start_time: "LOT_START_TIME"
+      end_time: "LOT_END_TIME"
+      fab_id: "FAB_ID"
+      route_id: "ROUTE_ID"

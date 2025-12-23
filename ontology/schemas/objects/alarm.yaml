@@ -1,0 +1,272 @@
+# Alarm Object Type
+# 알람/이벤트를 나타내는 온톨로지 객체
+
+objectType: Alarm
+version: "1.0.0"
+description: "설비 또는 공정에서 발생한 알람/이벤트"
+
+# 기본 키
+primaryKey: alarm_id
+
+# 속성 정의
+properties:
+  alarm_id:
+    type: string
+    description: "알람 고유 식별자"
+    required: true
+    indexed: true
+
+  alarm_code:
+    type: string
+    description: "알람 코드"
+    required: true
+    indexed: true
+    example: "FDC-001"
+
+  alarm_name:
+    type: string
+    description: "알람 이름"
+    required: true
+    example: "Chamber Pressure High"
+
+  source_system:
+    type: enum
+    description: "알람 발생 시스템"
+    required: true
+    values:
+      - FDC          # Fault Detection & Classification
+      - SPC          # Statistical Process Control
+      - EQUIPMENT    # 설비 자체
+      - MES          # MES 시스템
+      - ANALYTICS    # 분석 엔진
+    example: "FDC"
+
+  severity:
+    type: enum
+    description: "알람 심각도"
+    required: true
+    values:
+      - CRITICAL     # 치명적 (즉시 조치 필요)
+      - MAJOR        # 주요 (빠른 조치 필요)
+      - MINOR        # 경미 (모니터링 필요)
+      - WARNING      # 경고 (주의 필요)
+      - INFO         # 정보
+    example: "MAJOR"
+
+  category:
+    type: enum
+    description: "알람 유형"
+    required: true
+    values:
+      - FAULT        # 결함/고장
+      - OOC          # Out of Control (SPC)
+      - OOS          # Out of Spec
+      - DRIFT        # 드리프트
+      - ANOMALY      # 이상 감지
+      - MAINTENANCE  # 유지보수 필요
+      - INTERLOCK    # 인터락
+    example: "OOC"
+
+  equipment_id:
+    type: string
+    description: "관련 설비 ID"
+    required: true
+    indexed: true
+
+  chamber_id:
+    type: string
+    description: "챔버 ID"
+    required: false
+
+  process_id:
+    type: string
+    description: "관련 공정 ID"
+    required: false
+    indexed: true
+
+  lot_id:
+    type: string
+    description: "관련 Lot ID"
+    required: false
+    indexed: true
+
+  wafer_id:
+    type: string
+    description: "관련 웨이퍼 ID"
+    required: false
+
+  param_id:
+    type: string
+    description: "관련 파라미터 ID"
+    required: false
+
+  # 시간 정보
+  occurred_at:
+    type: datetime
+    description: "알람 발생 시간"
+    required: true
+    indexed: true
+
+  acknowledged_at:
+    type: datetime
+    description: "알람 확인 시간"
+    required: false
+
+  resolved_at:
+    type: datetime
+    description: "알람 해결 시간"
+    required: false
+
+  # 상태
+  status:
+    type: enum
+    description: "알람 상태"
+    required: true
+    values:
+      - ACTIVE       # 활성
+      - ACKNOWLEDGED # 확인됨
+      - RESOLVED     # 해결됨
+      - SUPPRESSED   # 억제됨
+    default: "ACTIVE"
+
+  # 상세 정보
+  message:
+    type: string
+    description: "알람 메시지"
+    required: true
+    example: "Chamber pressure exceeded UCL: 105.3 mTorr > 100 mTorr"
+
+  description:
+    type: string
+    description: "상세 설명"
+    required: false
+
+  triggered_value:
+    type: float
+    description: "알람을 발생시킨 값"
+    required: false
+
+  threshold_value:
+    type: float
+    description: "임계값"
+    required: false
+
+  # 조치 정보
+  action_taken:
+    type: string
+    description: "취해진 조치"
+    required: false
+
+  assigned_to:
+    type: string
+    description: "담당자"
+    required: false
+
+  root_cause:
+    type: string
+    description: "근본 원인"
+    required: false
+
+  # 영향도
+  affected_lots:
+    type: array
+    items:
+      type: string
+    description: "영향받은 Lot 목록"
+    required: false
+
+  affected_wafer_count:
+    type: integer
+    description: "영향받은 웨이퍼 수"
+    required: false
+
+  # 관련 알람
+  related_alarm_ids:
+    type: array
+    items:
+      type: string
+    description: "관련 알람 ID 목록"
+    required: false
+
+  # CEP 정보 (복합 이벤트)
+  pattern_id:
+    type: string
+    description: "감지된 패턴 ID (CEP)"
+    required: false
+
+  confidence_score:
+    type: float
+    description: "신뢰도 점수 (ML 기반 알람)"
+    required: false
+    min: 0.0
+    max: 1.0
+
+# 관계 정의
+outgoingLinks:
+  - linkType: OCCURRED_ON
+    targetObject: Equipment
+    description: "알람이 발생한 설비"
+
+  - linkType: AFFECTS
+    targetObject: Lot
+    description: "영향받은 Lot"
+    cardinality: "1:N"
+
+  - linkType: TRIGGERED_BY
+    targetObject: Measurement
+    description: "알람을 발생시킨 측정"
+
+  - linkType: RELATED_TO
+    targetObject: Alarm
+    description: "관련 알람"
+    cardinality: "N:N"
+
+incomingLinks: []
+
+# 파티셔닝
+partitioning:
+  enabled: true
+  key: occurred_at
+  interval: "1 day"
+  retention: "365 days"
+
+# 인덱스
+indexes:
+  - fields: [alarm_id]
+    unique: true
+  - fields: [equipment_id, occurred_at]
+    unique: false
+  - fields: [severity, status, occurred_at]
+    unique: false
+  - fields: [alarm_code, occurred_at]
+    unique: false
+  - fields: [lot_id]
+    unique: false
+
+# 데이터 소스 매핑
+sourceMapping:
+  fdc:
+    table: "FDC_ALARM_HISTORY"
+    keyColumn: "ALARM_ID"
+    columnMapping:
+      alarm_id: "ALARM_ID"
+      alarm_code: "ALARM_CODE"
+      alarm_name: "ALARM_NAME"
+      severity: "ALARM_LEVEL"
+      equipment_id: "EQUIP_ID"
+      lot_id: "LOT_ID"
+      occurred_at: "ALARM_TIME"
+      message: "ALARM_MSG"
+      triggered_value: "ALARM_VALUE"
+      threshold_value: "THRESHOLD"
+  spc:
+    table: "SPC_ALARM_LOG"
+    keyColumn: "LOG_ID"
+    columnMapping:
+      alarm_id: "LOG_ID"
+      alarm_code: "RULE_CODE"
+      severity: "SEVERITY"
+      equipment_id: "EQUIP_ID"
+      process_id: "PROCESS_ID"
+      occurred_at: "OCCUR_TIME"
+      message: "DESCRIPTION"

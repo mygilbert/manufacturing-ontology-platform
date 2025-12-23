@@ -1,0 +1,144 @@
+{
+  "type": "record",
+  "name": "LotEvent",
+  "namespace": "com.manufacturing.ontology.mes",
+  "doc": "Lot 이벤트",
+  "fields": [
+    {
+      "name": "event_type",
+      "type": {
+        "type": "enum",
+        "name": "LotEventType",
+        "symbols": ["CREATED", "UPDATED", "TRACK_IN", "TRACK_OUT", "HOLD", "RELEASE", "COMPLETED", "SCRAPPED"]
+      },
+      "doc": "이벤트 유형"
+    },
+    {
+      "name": "lot_id",
+      "type": "string",
+      "doc": "Lot ID"
+    },
+    {
+      "name": "product_code",
+      "type": "string",
+      "doc": "제품 코드"
+    },
+    {
+      "name": "product_name",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "제품명"
+    },
+    {
+      "name": "quantity",
+      "type": "int",
+      "doc": "Lot 내 Wafer 수량"
+    },
+    {
+      "name": "priority",
+      "type": {
+        "type": "enum",
+        "name": "LotPriority",
+        "symbols": ["SUPER_HOT", "HOT", "NORMAL", "HOLD"]
+      },
+      "default": "NORMAL",
+      "doc": "우선순위"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "LotStatus",
+        "symbols": ["WAIT", "RUN", "COMP", "HOLD", "SCRAPPED"]
+      },
+      "doc": "Lot 상태"
+    },
+    {
+      "name": "current_step",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "현재 공정 단계"
+    },
+    {
+      "name": "previous_step",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "이전 공정 단계"
+    },
+    {
+      "name": "equipment_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "현재/마지막 설비 ID"
+    },
+    {
+      "name": "recipe_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "사용 레시피 ID"
+    },
+    {
+      "name": "fab_id",
+      "type": "string",
+      "doc": "FAB ID"
+    },
+    {
+      "name": "route_id",
+      "type": "string",
+      "doc": "공정 경로 ID"
+    },
+    {
+      "name": "event_time",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "이벤트 발생 시간"
+    },
+    {
+      "name": "start_time",
+      "type": ["null", {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }],
+      "default": null,
+      "doc": "Lot 시작 시간"
+    },
+    {
+      "name": "end_time",
+      "type": ["null", {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }],
+      "default": null,
+      "doc": "Lot 종료 시간"
+    },
+    {
+      "name": "operator_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "작업자 ID"
+    },
+    {
+      "name": "comments",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "비고"
+    },
+    {
+      "name": "wafer_ids",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "default": [],
+      "doc": "포함된 Wafer ID 목록"
+    },
+    {
+      "name": "source_system",
+      "type": "string",
+      "default": "MES",
+      "doc": "소스 시스템"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+# GENERATES_ALARM Link Type
+# Equipment에서 Alarm이 발생하는 관계
+
+linkType: GENERATES_ALARM
+version: "1.0.0"
+description: "설비에서 알람이 발생한 관계"
+
+# 관계 방향
+source:
+  objectType: Equipment
+  cardinality: 1  # 하나의 설비에서
+
+target:
+  objectType: Alarm
+  cardinality: N  # 여러 알람이 발생
+
+# Edge 속성
+properties:
+  chamber_id:
+    type: string
+    description: "알람 발생 챔버 ID"
+    required: false
+
+  component:
+    type: string
+    description: "알람 발생 컴포넌트"
+    required: false
+    example: "RF_GENERATOR"
+
+  is_recurring:
+    type: boolean
+    description: "반복 발생 여부"
+    default: false
+
+  recurrence_count:
+    type: integer
+    description: "반복 발생 횟수"
+    required: false
+
+# 인덱스
+indexes:
+  - fields: [chamber_id]
+  - fields: [component]
+
+# 데이터 소스 매핑
+sourceMapping:
+  fdc:
+    table: "FDC_ALARM_EQUIP"
+    columnMapping:
+      chamber_id: "CHAMBER_ID"
+      component: "COMPONENT_ID"

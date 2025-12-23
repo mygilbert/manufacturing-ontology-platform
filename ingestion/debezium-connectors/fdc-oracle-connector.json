@@ -1,0 +1,64 @@
+{
+  "name": "fdc-oracle-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.oracle.OracleConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "${FDC_ORACLE_HOST}",
+    "database.port": "${FDC_ORACLE_PORT:-1521}",
+    "database.user": "${FDC_ORACLE_USER}",
+    "database.password": "${FDC_ORACLE_PASSWORD}",
+    "database.dbname": "${FDC_ORACLE_SID}",
+    "database.server.name": "fdc",
+
+    "schema.include.list": "FDC",
+    "table.include.list": "FDC.FDC_PARAM_VALUE,FDC.FDC_ALARM_HISTORY,FDC.FDC_EQUIPMENT_MASTER,FDC.FDC_RECIPE_MASTER",
+
+    "database.history.kafka.bootstrap.servers": "kafka:29092",
+    "database.history.kafka.topic": "fdc.schema-changes",
+
+    "include.schema.changes": "true",
+    "snapshot.mode": "initial",
+    "snapshot.locking.mode": "none",
+
+    "log.mining.strategy": "online_catalog",
+    "log.mining.continuous.mine": "true",
+
+    "decimal.handling.mode": "double",
+    "time.precision.mode": "connect",
+
+    "tombstones.on.delete": "false",
+    "provide.transaction.metadata": "true",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+
+    "transforms": "unwrap,route,addMetadata",
+
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.add.fields": "op,table,source.ts_ms",
+
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": "fdc\\.FDC\\.(.*)",
+    "transforms.route.replacement": "fdc.$1",
+
+    "transforms.addMetadata.type": "org.apache.kafka.connect.transforms.InsertField$Value",
+    "transforms.addMetadata.static.field": "source_system",
+    "transforms.addMetadata.static.value": "FDC",
+
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true",
+    "errors.deadletterqueue.topic.name": "fdc.dlq",
+    "errors.deadletterqueue.topic.replication.factor": "1",
+
+    "heartbeat.interval.ms": "10000",
+    "poll.interval.ms": "1000",
+    "max.batch.size": "2048",
+    "max.queue.size": "8192"
+  }
+}

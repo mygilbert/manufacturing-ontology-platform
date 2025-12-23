@@ -1,0 +1,76 @@
+# USES_RECIPE Link Type
+# Process/Equipment가 Recipe를 사용하는 관계
+
+linkType: USES_RECIPE
+version: "1.0.0"
+description: "공정 또는 설비가 특정 레시피를 사용하는 관계"
+
+# 관계 방향
+source:
+  objectType: Process
+  alternativeSource: Equipment
+  cardinality: N  # 여러 공정/설비가
+
+target:
+  objectType: Recipe
+  cardinality: N  # 여러 레시피를 사용할 수 있음
+
+# Edge 속성
+properties:
+  is_default:
+    type: boolean
+    description: "기본 레시피 여부"
+    default: false
+
+  is_active:
+    type: boolean
+    description: "현재 활성화 여부"
+    default: true
+
+  valid_from:
+    type: datetime
+    description: "유효 시작일"
+    required: false
+
+  valid_to:
+    type: datetime
+    description: "유효 종료일"
+    required: false
+
+  qualification_status:
+    type: enum
+    description: "자격 검증 상태"
+    values:
+      - QUALIFIED      # 검증 완료
+      - PENDING        # 검증 대기
+      - DISQUALIFIED   # 검증 실패
+    default: "QUALIFIED"
+
+  product_codes:
+    type: array
+    items:
+      type: string
+    description: "적용 가능한 제품 코드"
+    required: false
+
+# 제약 조건
+constraints:
+  - type: check
+    condition: "valid_from <= valid_to OR valid_to IS NULL"
+    description: "유효 시작일은 종료일보다 이전이어야 함"
+
+# 인덱스
+indexes:
+  - fields: [is_default]
+  - fields: [is_active]
+  - fields: [qualification_status]
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_PROCESS_RECIPE"
+    columnMapping:
+      is_default: "DEFAULT_FLAG"
+      is_active: "ACTIVE_FLAG"
+      valid_from: "VALID_FROM"
+      valid_to: "VALID_TO"

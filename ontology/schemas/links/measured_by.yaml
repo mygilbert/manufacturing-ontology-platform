@@ -1,0 +1,50 @@
+# MEASURED_BY Link Type
+# Wafer/Lot의 측정 데이터 관계
+
+linkType: MEASURED_BY
+version: "1.0.0"
+description: "Wafer 또는 Lot이 특정 측정값을 가지는 관계"
+
+# 관계 방향
+source:
+  objectType: Wafer
+  cardinality: 1  # 하나의 웨이퍼가
+
+target:
+  objectType: Measurement
+  cardinality: N  # 여러 측정값을 가질 수 있음
+
+# Edge 속성
+properties:
+  measurement_type:
+    type: enum
+    description: "측정 유형"
+    required: true
+    values:
+      - FDC          # 공정 파라미터
+      - SPC          # 품질 측정
+      - METROLOGY    # 계측
+      - INLINE       # 인라인 검사
+      - FINAL        # 최종 검사
+
+  site_id:
+    type: string
+    description: "측정 사이트 ID (웨이퍼 내 위치)"
+    required: false
+
+  sequence_no:
+    type: integer
+    description: "측정 순서"
+    required: false
+
+# 인덱스
+indexes:
+  - fields: [measurement_type]
+
+# 데이터 소스 매핑
+sourceMapping:
+  spc:
+    table: "SPC_WAFER_MEASUREMENT"
+    columnMapping:
+      measurement_type: "MEAS_TYPE"
+      site_id: "SITE_ID"

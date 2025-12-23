@@ -1,0 +1,236 @@
+# Measurement Object Type
+# 측정값을 나타내는 온톨로지 객체 (FDC, SPC 데이터)
+
+objectType: Measurement
+version: "1.0.0"
+description: "공정 측정값 (FDC 센서 데이터, SPC 품질 데이터)"
+
+# 기본 키 (복합 키)
+primaryKey: measurement_id
+compositeKey: [equipment_id, wafer_id, param_id, timestamp]
+
+# 속성 정의
+properties:
+  measurement_id:
+    type: string
+    description: "측정 고유 식별자"
+    required: true
+    indexed: true
+
+  source_system:
+    type: enum
+    description: "데이터 소스 시스템"
+    required: true
+    values:
+      - FDC          # Fault Detection & Classification
+      - SPC          # Statistical Process Control
+      - METROLOGY    # 계측 장비
+      - INLINE       # 인라인 검사
+    example: "FDC"
+
+  equipment_id:
+    type: string
+    description: "측정 설비 ID"
+    required: true
+    indexed: true
+
+  wafer_id:
+    type: string
+    description: "측정 대상 웨이퍼 ID"
+    required: false
+    indexed: true
+
+  lot_id:
+    type: string
+    description: "측정 대상 Lot ID"
+    required: false
+    indexed: true
+
+  process_id:
+    type: string
+    description: "공정 ID"
+    required: true
+    indexed: true
+
+  recipe_id:
+    type: string
+    description: "레시피 ID"
+    required: false
+
+  param_id:
+    type: string
+    description: "파라미터 ID"
+    required: true
+    indexed: true
+    example: "CHAMBER_PRESSURE"
+
+  param_name:
+    type: string
+    description: "파라미터 이름"
+    required: true
+    example: "Chamber Pressure"
+
+  value:
+    type: float
+    description: "측정값"
+    required: true
+
+  unit:
+    type: string
+    description: "단위"
+    required: true
+    example: "mTorr"
+
+  timestamp:
+    type: datetime
+    description: "측정 시간"
+    required: true
+    indexed: true
+
+  # 규격/관리 한계
+  usl:
+    type: float
+    description: "상한 규격"
+    required: false
+
+  lsl:
+    type: float
+    description: "하한 규격"
+    required: false
+
+  ucl:
+    type: float
+    description: "상한 관리 한계"
+    required: false
+
+  lcl:
+    type: float
+    description: "하한 관리 한계"
+    required: false
+
+  target:
+    type: float
+    description: "목표값"
+    required: false
+
+  # 상태 판정
+  status:
+    type: enum
+    description: "측정 결과 상태"
+    required: false
+    values:
+      - NORMAL       # 정상
+      - WARNING      # 경고 (관리한계 초과)
+      - ALARM        # 알람 (규격한계 초과)
+      - OUTLIER      # 이상치
+    default: "NORMAL"
+
+  # 통계 정보 (배치/윈도우 집계 시)
+  statistics:
+    type: object
+    description: "통계 정보"
+    required: false
+    properties:
+      mean:
+        type: float
+        description: "평균"
+      std:
+        type: float
+        description: "표준편차"
+      min:
+        type: float
+        description: "최소값"
+      max:
+        type: float
+        description: "최대값"
+      cp:
+        type: float
+        description: "공정능력지수 Cp"
+      cpk:
+        type: float
+        description: "공정능력지수 Cpk"
+
+  # 샘플 정보
+  sample_count:
+    type: integer
+    description: "샘플 수"
+    required: false
+    default: 1
+
+  site_id:
+    type: string
+    description: "측정 사이트 ID (웨이퍼 내 위치)"
+    required: false
+
+# 관계 정의
+outgoingLinks:
+  - linkType: MEASURED_ON
+    targetObject: Equipment
+    description: "측정이 수행된 설비"
+
+  - linkType: MEASURED_FOR
+    targetObject: Wafer
+    description: "측정 대상 웨이퍼"
+
+  - linkType: PART_OF_PROCESS
+    targetObject: Process
+    description: "해당 공정"
+
+incomingLinks:
+  - linkType: TRIGGERED
+    sourceObject: Alarm
+    description: "이 측정으로 발생한 알람"
+
+# 파티셔닝 (시계열 최적화)
+partitioning:
+  enabled: true
+  key: timestamp
+  interval: "1 day"
+  retention: "90 days"
+
+# 인덱스
+indexes:
+  - fields: [measurement_id]
+    unique: true
+  - fields: [equipment_id, param_id, timestamp]
+    unique: false
+  - fields: [wafer_id, timestamp]
+    unique: false
+  - fields: [process_id, param_id, timestamp]
+    unique: false
+  - fields: [status, timestamp]
+    unique: false
+
+# 데이터 소스 매핑
+sourceMapping:
+  fdc:
+    table: "FDC_PARAM_VALUE"
+    keyColumn: "VALUE_ID"
+    columnMapping:
+      measurement_id: "VALUE_ID"
+      equipment_id: "EQUIP_ID"
+      wafer_id: "WAFER_ID"
+      lot_id: "LOT_ID"
+      param_id: "PARAM_ID"
+      param_name: "PARAM_NAME"
+      value: "PARAM_VALUE"
+      unit: "PARAM_UNIT"
+      timestamp: "COLLECT_TIME"
+      usl: "USL"
+      lsl: "LSL"
+  spc:
+    table: "SPC_MEASUREMENT"
+    keyColumn: "MEAS_ID"
+    columnMapping:
+      measurement_id: "MEAS_ID"
+      equipment_id: "EQUIP_ID"
+      wafer_id: "WAFER_ID"
+      process_id: "PROCESS_ID"
+      param_id: "ITEM_ID"
+      param_name: "ITEM_NAME"
+      value: "MEAS_VALUE"
+      unit: "UNIT"
+      timestamp: "MEAS_TIME"
+      ucl: "UCL"
+      lcl: "LCL"
+      target: "TARGET"

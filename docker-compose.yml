@@ -1,0 +1,548 @@
+# ============================================================
+# Manufacturing Ontology Platform - Docker Compose
+# ============================================================
+# 개발 환경 구성: PostgreSQL+AGE, Kafka, TimescaleDB, Redis
+#
+# 사용법:
+#   docker-compose up -d              # 전체 서비스 시작
+#   docker-compose up -d postgres     # PostgreSQL만 시작
+#   docker-compose logs -f            # 로그 확인
+#   docker-compose down -v            # 서비스 중지 및 볼륨 삭제
+# ============================================================
+
+
+services:
+  # ============================================================
+  # PostgreSQL + Apache AGE (온톨로지 그래프 DB)
+  # ============================================================
+  postgres:
+    image: apache/age:release_PG16_1.6.0
+    container_name: ontology-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ontology}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ontology123}
+      POSTGRES_DB: ${POSTGRES_DB:-manufacturing}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ontology} -d ${POSTGRES_DB:-manufacturing}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # TimescaleDB (시계열 데이터)
+  # ============================================================
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: ontology-timescaledb
+    environment:
+      POSTGRES_USER: ${TIMESCALE_USER:-timescale}
+      POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:-timescale123}
+      POSTGRES_DB: ${TIMESCALE_DB:-measurements}
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./infra/timescaledb/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TIMESCALE_USER:-timescale} -d ${TIMESCALE_DB:-measurements}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Redis (캐시 및 실시간 상태)
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: ontology-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis123}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Zookeeper (Kafka 의존성)
+  # ============================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: ontology-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Kafka (메시지 브로커)
+  # ============================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: ontology-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Schema Registry (Avro 스키마 관리)
+  # ============================================================
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.0
+    container_name: ontology-schema-registry
+    depends_on:
+      - kafka
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Kafka Connect (Debezium CDC)
+  # ============================================================
+  kafka-connect:
+    image: debezium/connect:2.4
+    container_name: ontology-kafka-connect
+    depends_on:
+      - kafka
+      - schema-registry
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: ontology-connect
+      CONFIG_STORAGE_TOPIC: ontology-connect-configs
+      OFFSET_STORAGE_TOPIC: ontology-connect-offsets
+      STATUS_STORAGE_TOPIC: ontology-connect-status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      # Oracle/SQL Server 드라이버 경로 (필요 시 마운트)
+      # CONNECT_PLUGIN_PATH: /kafka/connect
+    volumes:
+      - ./ingestion/debezium-connectors:/kafka/connect/debezium-connectors
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Kafka UI (관리 콘솔)
+  # ============================================================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: ontology-kafka-ui
+    depends_on:
+      - kafka
+      - schema-registry
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: ontology
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # API Server (FastAPI)
+  # ============================================================
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: ontology-api
+    depends_on:
+      - postgres
+      - timescaledb
+      - redis
+      - kafka
+    ports:
+      - "8000:8000"
+    environment:
+      # PostgreSQL (AGE)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-ontology}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ontology123}
+      POSTGRES_DB: ${POSTGRES_DB:-manufacturing}
+      # TimescaleDB
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_PORT: 5432
+      TIMESCALE_USER: ${TIMESCALE_USER:-timescale}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-timescale123}
+      TIMESCALE_DB: ${TIMESCALE_DB:-measurements}
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
+      # Kafka
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    volumes:
+      - ./api/src:/app/src:ro
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Frontend (React + Nginx)
+  # ============================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ontology-frontend
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Analytics Engine (Python ML)
+  # ============================================================
+  analytics:
+    build:
+      context: ./analytics
+      dockerfile: Dockerfile
+    container_name: ontology-analytics
+    depends_on:
+      - kafka
+      - redis
+      - timescaledb
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_PORT: 5432
+      TIMESCALE_USER: ${TIMESCALE_USER:-timescale}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-timescale123}
+      TIMESCALE_DB: ${TIMESCALE_DB:-measurements}
+      MODEL_SAVE_PATH: /app/models
+    volumes:
+      - analytics_models:/app/models
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # CDC Transformers
+  # ============================================================
+  transformer-fdc:
+    build:
+      context: ./ingestion/transformers
+      dockerfile: Dockerfile
+    container_name: ontology-transformer-fdc
+    command: ["python", "fdc_transformer.py", "measurement"]
+    depends_on:
+      - kafka
+      - postgres
+      - timescaledb
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_CONSUMER_GROUP: ontology-transformer-fdc
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-ontology}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ontology123}
+      POSTGRES_DB: ${POSTGRES_DB:-manufacturing}
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_PORT: 5432
+      TIMESCALE_USER: ${TIMESCALE_USER:-timescale}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-timescale123}
+      TIMESCALE_DB: ${TIMESCALE_DB:-measurements}
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  transformer-spc:
+    build:
+      context: ./ingestion/transformers
+      dockerfile: Dockerfile
+    container_name: ontology-transformer-spc
+    command: ["python", "spc_transformer.py"]
+    depends_on:
+      - kafka
+      - postgres
+      - timescaledb
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_CONSUMER_GROUP: ontology-transformer-spc
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-ontology}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ontology123}
+      POSTGRES_DB: ${POSTGRES_DB:-manufacturing}
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_PORT: 5432
+      TIMESCALE_USER: ${TIMESCALE_USER:-timescale}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-timescale123}
+      TIMESCALE_DB: ${TIMESCALE_DB:-measurements}
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  ontology-sink:
+    build:
+      context: ./ingestion/transformers
+      dockerfile: Dockerfile
+    container_name: ontology-sink
+    command: ["python", "ontology_sink.py"]
+    depends_on:
+      - kafka
+      - postgres
+      - timescaledb
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_CONSUMER_GROUP: ontology-transformer-sink
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-ontology}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ontology123}
+      POSTGRES_DB: ${POSTGRES_DB:-manufacturing}
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_PORT: 5432
+      TIMESCALE_USER: ${TIMESCALE_USER:-timescale}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-timescale123}
+      TIMESCALE_DB: ${TIMESCALE_DB:-measurements}
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Flink JobManager (클러스터 마스터)
+  # ============================================================
+  flink-jobmanager:
+    image: flink:1.18-java11
+    container_name: ontology-flink-jobmanager
+    ports:
+      - "8082:8081"  # Flink Web UI (8081 is taken by schema-registry)
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 4
+        parallelism.default: 2
+        state.backend: rocksdb
+        state.checkpoints.dir: file:///tmp/flink-checkpoints
+        state.savepoints.dir: file:///tmp/flink-savepoints
+        execution.checkpointing.interval: 60000
+        execution.checkpointing.mode: EXACTLY_ONCE
+    volumes:
+      - flink_checkpoints:/tmp/flink-checkpoints
+      - flink_savepoints:/tmp/flink-savepoints
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Flink TaskManager (워커 노드)
+  # ============================================================
+  flink-taskmanager:
+    image: flink:1.18-java11
+    container_name: ontology-flink-taskmanager
+    depends_on:
+      - flink-jobmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 4
+        taskmanager.memory.process.size: 2048m
+        taskmanager.memory.flink.size: 1536m
+    volumes:
+      - flink_checkpoints:/tmp/flink-checkpoints
+      - flink_savepoints:/tmp/flink-savepoints
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Flink Stream Jobs - FDC Enrichment
+  # ============================================================
+  flink-job-fdc:
+    build:
+      context: ./stream-processing
+      dockerfile: Dockerfile
+    container_name: ontology-flink-job-fdc
+    depends_on:
+      - kafka
+      - redis
+    environment:
+      JOB_NAME: fdc_enrichment
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
+      FLINK_PARALLELISM: 2
+      FLINK_CHECKPOINT_INTERVAL: 60000
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Flink Stream Jobs - SPC Control Chart
+  # ============================================================
+  flink-job-spc:
+    build:
+      context: ./stream-processing
+      dockerfile: Dockerfile
+    container_name: ontology-flink-job-spc
+    depends_on:
+      - kafka
+      - redis
+    environment:
+      JOB_NAME: spc_control_chart
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
+      FLINK_PARALLELISM: 2
+      FLINK_CHECKPOINT_INTERVAL: 60000
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Flink Stream Jobs - CEP Anomaly Detection
+  # ============================================================
+  flink-job-cep:
+    build:
+      context: ./stream-processing
+      dockerfile: Dockerfile
+    container_name: ontology-flink-job-cep
+    depends_on:
+      - kafka
+      - redis
+    environment:
+      JOB_NAME: cep_anomaly_detection
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
+      FLINK_PARALLELISM: 2
+      FLINK_CHECKPOINT_INTERVAL: 60000
+      # CEP 설정
+      CEP_THRESHOLD_VIOLATION_COUNT: 3
+      CEP_THRESHOLD_VIOLATION_WINDOW: 180000
+      CEP_CONSECUTIVE_ALARM_COUNT: 5
+      CEP_CONSECUTIVE_ALARM_WINDOW: 300000
+      CEP_DRIFT_DETECTION_WINDOW: 600000
+      CEP_DRIFT_THRESHOLD_SIGMA: 2.0
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+  # ============================================================
+  # Flink Stream Jobs - Window Aggregation
+  # ============================================================
+  flink-job-aggregation:
+    build:
+      context: ./stream-processing
+      dockerfile: Dockerfile
+    container_name: ontology-flink-job-aggregation
+    depends_on:
+      - kafka
+      - redis
+    environment:
+      JOB_NAME: window_aggregation
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
+      FLINK_PARALLELISM: 2
+      FLINK_CHECKPOINT_INTERVAL: 60000
+    networks:
+      - ontology-network
+    restart: unless-stopped
+
+# ============================================================
+# Networks
+# ============================================================
+networks:
+  ontology-network:
+    driver: bridge
+
+# ============================================================
+# Volumes
+# ============================================================
+volumes:
+  postgres_data:
+    driver: local
+  analytics_models:
+    driver: local
+  timescale_data:
+    driver: local
+  redis_data:
+    driver: local
+  zookeeper_data:
+    driver: local
+  zookeeper_log:
+    driver: local
+  kafka_data:
+    driver: local
+  flink_checkpoints:
+    driver: local
+  flink_savepoints:
+    driver: local

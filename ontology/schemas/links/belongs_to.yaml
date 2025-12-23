@@ -1,0 +1,57 @@
+# BELONGS_TO Link Type
+# Wafer가 Lot에 소속되는 관계
+
+linkType: BELONGS_TO
+version: "1.0.0"
+description: "Wafer가 특정 Lot에 소속되는 관계"
+
+# 관계 방향
+source:
+  objectType: Wafer
+  cardinality: N  # 여러 Wafer가
+
+target:
+  objectType: Lot
+  cardinality: 1  # 하나의 Lot에 속함
+
+# Edge 속성
+properties:
+  slot_no:
+    type: integer
+    description: "카세트 내 슬롯 번호"
+    required: true
+    min: 1
+    max: 25
+
+  original_lot_id:
+    type: string
+    description: "원래 Lot ID (분할된 경우)"
+    required: false
+
+  split_from:
+    type: string
+    description: "분할 원본 웨이퍼 ID"
+    required: false
+
+  merged_to:
+    type: string
+    description: "병합 대상 웨이퍼 ID"
+    required: false
+
+# 제약 조건
+constraints:
+  - type: unique
+    fields: [source, slot_no]
+    description: "같은 Lot 내에서 슬롯 번호는 유일해야 함"
+
+# 인덱스
+indexes:
+  - fields: [slot_no]
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_WAFER_LOT"
+    columnMapping:
+      slot_no: "SLOT_NO"
+      original_lot_id: "ORIG_LOT_ID"

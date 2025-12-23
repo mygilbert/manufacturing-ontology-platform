@@ -1,0 +1,212 @@
+# Recipe Object Type
+# 공정 레시피를 나타내는 온톨로지 객체
+
+objectType: Recipe
+version: "1.0.0"
+description: "설비에서 사용하는 공정 레시피"
+
+# 기본 키
+primaryKey: recipe_id
+compositeKey: [recipe_name, version]
+
+# 속성 정의
+properties:
+  recipe_id:
+    type: string
+    description: "레시피 고유 식별자"
+    required: true
+    indexed: true
+    example: "RCP-ETCH-OXIDE-V2.1"
+
+  recipe_name:
+    type: string
+    description: "레시피 이름"
+    required: true
+    indexed: true
+    example: "OXIDE_ETCH_STD"
+
+  version:
+    type: string
+    description: "레시피 버전"
+    required: true
+    example: "2.1"
+
+  description:
+    type: string
+    description: "레시피 설명"
+    required: false
+
+  status:
+    type: enum
+    description: "레시피 상태"
+    required: true
+    values:
+      - ACTIVE       # 활성 (사용 가능)
+      - INACTIVE     # 비활성
+      - DEVELOPMENT  # 개발 중
+      - DEPRECATED   # 폐기 예정
+    default: "ACTIVE"
+
+  equipment_type:
+    type: string
+    description: "적용 설비 유형"
+    required: true
+    example: "DRY_ETCH"
+
+  process_type:
+    type: string
+    description: "공정 유형"
+    required: true
+    example: "OXIDE_ETCH"
+
+  product_codes:
+    type: array
+    items:
+      type: string
+    description: "적용 가능한 제품 코드 목록"
+    required: false
+    example: ["DRAM-8Gb-DDR5", "DRAM-16Gb-DDR5"]
+
+  # 레시피 파라미터
+  parameters:
+    type: array
+    items:
+      type: object
+      properties:
+        param_id:
+          type: string
+        param_name:
+          type: string
+        set_value:
+          type: float
+        unit:
+          type: string
+        usl:
+          type: float
+        lsl:
+          type: float
+    description: "레시피 파라미터 목록"
+    required: true
+
+  # 스텝 정보
+  steps:
+    type: array
+    items:
+      type: object
+      properties:
+        step_no:
+          type: integer
+        step_name:
+          type: string
+        duration:
+          type: float
+        parameters:
+          type: object
+    description: "레시피 스텝 목록"
+    required: false
+
+  total_duration:
+    type: float
+    description: "총 처리 시간 (초)"
+    required: false
+    unit: "seconds"
+
+  # 메타 정보
+  created_by:
+    type: string
+    description: "생성자"
+    required: false
+
+  created_at:
+    type: datetime
+    description: "생성 시간"
+    required: true
+
+  updated_by:
+    type: string
+    description: "수정자"
+    required: false
+
+  updated_at:
+    type: datetime
+    description: "수정 시간"
+    required: false
+
+  approved_by:
+    type: string
+    description: "승인자"
+    required: false
+
+  approved_at:
+    type: datetime
+    description: "승인 시간"
+    required: false
+
+  # 성능 지표
+  target_yield:
+    type: float
+    description: "목표 수율 (%)"
+    required: false
+    min: 0.0
+    max: 100.0
+
+  target_cycle_time:
+    type: float
+    description: "목표 사이클 타임 (초)"
+    required: false
+
+# 관계 정의
+outgoingLinks:
+  - linkType: USED_BY
+    targetObject: Equipment
+    description: "이 레시피를 사용하는 설비"
+    cardinality: "N:N"
+
+  - linkType: APPLIED_TO
+    targetObject: Process
+    description: "이 레시피가 적용되는 공정"
+    cardinality: "N:N"
+
+  - linkType: PREVIOUS_VERSION
+    targetObject: Recipe
+    description: "이전 버전 레시피"
+    cardinality: "N:1"
+
+incomingLinks:
+  - linkType: NEXT_VERSION
+    sourceObject: Recipe
+    description: "다음 버전 레시피"
+
+# 인덱스
+indexes:
+  - fields: [recipe_id]
+    unique: true
+  - fields: [recipe_name, version]
+    unique: true
+  - fields: [equipment_type, status]
+    unique: false
+  - fields: [process_type]
+    unique: false
+
+# 데이터 소스 매핑
+sourceMapping:
+  fdc:
+    table: "FDC_RECIPE_MASTER"
+    keyColumn: "RECIPE_ID"
+    columnMapping:
+      recipe_id: "RECIPE_ID"
+      recipe_name: "RECIPE_NAME"
+      version: "RECIPE_VER"
+      status: "RECIPE_STATUS"
+      equipment_type: "EQUIP_TYPE"
+      process_type: "PROCESS_TYPE"
+      created_at: "CREATE_TIME"
+      updated_at: "UPDATE_TIME"
+  mes:
+    table: "MES_RECIPE"
+    keyColumn: "RCP_ID"
+    columnMapping:
+      recipe_id: "RCP_ID"
+      recipe_name: "RCP_NAME"
+      version: "RCP_VER"
+      total_duration: "PROCESS_TIME"

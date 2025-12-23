@@ -1,0 +1,16 @@
+# Manufacturing Ontology Platform - 스크립트 의존성
+
+# PostgreSQL 드라이버
+psycopg2-binary>=2.9.9
+
+# YAML 파싱
+pyyaml>=6.0.1
+
+# HTTP 클라이언트
+httpx>=0.25.0
+
+# 데이터 처리
+pandas>=2.0.0
+
+# 환경 변수
+python-dotenv>=1.0.0

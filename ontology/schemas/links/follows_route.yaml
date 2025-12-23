@@ -1,0 +1,101 @@
+# FOLLOWS_ROUTE Link Type
+# Lot이 Process 경로를 따르는 관계
+
+linkType: FOLLOWS_ROUTE
+version: "1.0.0"
+description: "Lot이 특정 공정 경로를 따라 진행되는 관계"
+
+# 관계 방향
+source:
+  objectType: Lot
+  cardinality: N  # 여러 Lot이
+
+target:
+  objectType: Process
+  cardinality: N  # 여러 공정 단계를 거침
+
+# Edge 속성
+properties:
+  sequence_no:
+    type: integer
+    description: "공정 순서"
+    required: true
+
+  status:
+    type: enum
+    description: "공정 진행 상태"
+    required: true
+    values:
+      - PENDING      # 대기
+      - IN_PROGRESS  # 진행 중
+      - COMPLETED    # 완료
+      - SKIPPED      # 건너뜀
+      - REWORK       # 재작업
+
+  scheduled_start:
+    type: datetime
+    description: "예정 시작 시간"
+    required: false
+
+  actual_start:
+    type: datetime
+    description: "실제 시작 시간"
+    required: false
+
+  actual_end:
+    type: datetime
+    description: "실제 종료 시간"
+    required: false
+
+  assigned_equipment_id:
+    type: string
+    description: "할당된 설비 ID"
+    required: false
+
+  rework_count:
+    type: integer
+    description: "재작업 횟수"
+    default: 0
+
+  yield_at_step:
+    type: float
+    description: "해당 공정 수율"
+    required: false
+    min: 0.0
+    max: 100.0
+
+# 파생 속성
+derivedProperties:
+  queue_time:
+    type: duration
+    description: "대기 시간"
+    formula: "actual_start - (previous_step.actual_end)"
+
+  cycle_time:
+    type: duration
+    description: "사이클 타임"
+    formula: "actual_end - actual_start"
+
+# 제약 조건
+constraints:
+  - type: unique
+    fields: [source, sequence_no]
+    description: "Lot별 공정 순서는 유일해야 함"
+
+# 인덱스
+indexes:
+  - fields: [sequence_no]
+  - fields: [status]
+  - fields: [assigned_equipment_id]
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_LOT_STEP"
+    columnMapping:
+      sequence_no: "SEQ_NO"
+      status: "STEP_STATUS"
+      scheduled_start: "PLAN_START"
+      actual_start: "ACTUAL_START"
+      actual_end: "ACTUAL_END"
+      assigned_equipment_id: "EQUIP_ID"

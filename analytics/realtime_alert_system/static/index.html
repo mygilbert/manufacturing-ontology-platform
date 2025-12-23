@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FDC Real-time Alert System</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>FDC Real-time Anomaly Detection</h1>
+            <div class="controls">
+                <button id="startBtn" class="btn btn-start">Start</button>
+                <button id="stopBtn" class="btn btn-stop" disabled>Stop</button>
+                <span id="statusIndicator" class="status-indicator status-stopped">Stopped</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Row: Sensor Charts -->
+            <section class="section sensor-section">
+                <h2>Real-time Sensor Data</h2>
+                <div class="chart-container">
+                    <canvas id="sensorChart"></canvas>
+                </div>
+            </section>
+
+            <!-- Middle Row: Score & Stats -->
+            <div class="middle-row">
+                <!-- Ensemble Score -->
+                <section class="section score-section">
+                    <h2>Ensemble Anomaly Score</h2>
+                    <div class="score-display">
+                        <div id="scoreValue" class="score-value">0.00</div>
+                        <div id="scoreLabel" class="score-label">NORMAL</div>
+                        <div class="score-bar-container">
+                            <div id="scoreBar" class="score-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="score-thresholds">
+                            <span>0</span>
+                            <span class="warning-mark">0.6</span>
+                            <span class="critical-mark">0.8</span>
+                            <span class="emergency-mark">0.95</span>
+                            <span>1</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Alert Statistics -->
+                <section class="section stats-section">
+                    <h2>Alert Statistics</h2>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-value" id="totalProcessed">0</span>
+                            <span class="stat-label">Windows Processed</span>
+                        </div>
+                        <div class="stat-item warning">
+                            <span class="stat-value" id="warningCount">0</span>
+                            <span class="stat-label">WARNING</span>
+                        </div>
+                        <div class="stat-item critical">
+                            <span class="stat-value" id="criticalCount">0</span>
+                            <span class="stat-label">CRITICAL</span>
+                        </div>
+                        <div class="stat-item emergency">
+                            <span class="stat-value" id="emergencyCount">0</span>
+                            <span class="stat-label">EMERGENCY</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Algorithm Scores -->
+            <section class="section algorithm-section">
+                <h2>Algorithm Scores</h2>
+                <div class="algorithm-grid">
+                    <div class="algo-item">
+                        <span class="algo-name">Z-Score</span>
+                        <div class="algo-bar-container">
+                            <div id="zscoreBar" class="algo-bar" style="width: 0%"></div>
+                        </div>
+                        <span id="zscoreValue" class="algo-value">0.00</span>
+                    </div>
+                    <div class="algo-item">
+                        <span class="algo-name">CUSUM</span>
+                        <div class="algo-bar-container">
+                            <div id="cusumBar" class="algo-bar" style="width: 0%"></div>
+                        </div>
+                        <span id="cusumValue" class="algo-value">0.00</span>
+                    </div>
+                    <div class="algo-item">
+                        <span class="algo-name">Isolation Forest</span>
+                        <div class="algo-bar-container">
+                            <div id="ifBar" class="algo-bar" style="width: 0%"></div>
+                        </div>
+                        <span id="ifValue" class="algo-value">0.00</span>
+                    </div>
+                    <div class="algo-item">
+                        <span class="algo-name">LOF</span>
+                        <div class="algo-bar-container">
+                            <div id="lofBar" class="algo-bar" style="width: 0%"></div>
+                        </div>
+                        <span id="lofValue" class="algo-value">0.00</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Alert Log -->
+            <section class="section log-section">
+                <h2>Recent Alerts <span id="alertCount">(0)</span></h2>
+                <div id="alertLog" class="alert-log">
+                    <div class="no-alerts">No alerts yet</div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <span>FDC Real-time Alert System v1.0</span>
+            <span id="connectionStatus" class="connection-status">Disconnected</span>
+            <span id="lastUpdate">Last update: -</span>
+        </footer>
+    </div>
+
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>

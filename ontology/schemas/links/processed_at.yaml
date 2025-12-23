@@ -1,0 +1,89 @@
+# PROCESSED_AT Link Type
+# Lot/Wafer가 특정 설비에서 처리되었음을 나타내는 관계
+
+linkType: PROCESSED_AT
+version: "1.0.0"
+description: "Lot 또는 Wafer가 특정 설비에서 처리된 관계"
+
+# 관계 방향
+source:
+  objectType: Lot
+  cardinality: N  # 여러 Lot이
+
+target:
+  objectType: Equipment
+  cardinality: N  # 여러 설비에서 처리될 수 있음
+
+# Edge 속성
+properties:
+  process_id:
+    type: string
+    description: "처리된 공정 ID"
+    required: true
+
+  recipe_id:
+    type: string
+    description: "사용된 레시피 ID"
+    required: true
+
+  start_time:
+    type: datetime
+    description: "처리 시작 시간"
+    required: true
+
+  end_time:
+    type: datetime
+    description: "처리 종료 시간"
+    required: false
+
+  chamber_id:
+    type: string
+    description: "챔버 ID"
+    required: false
+
+  status:
+    type: enum
+    description: "처리 상태"
+    values:
+      - IN_PROGRESS
+      - COMPLETED
+      - ABORTED
+    default: "COMPLETED"
+
+  result:
+    type: enum
+    description: "처리 결과"
+    values:
+      - PASS
+      - FAIL
+      - REWORK
+    required: false
+
+  operator_id:
+    type: string
+    description: "작업자 ID"
+    required: false
+
+# 파생 속성
+derivedProperties:
+  cycle_time:
+    type: duration
+    description: "사이클 타임"
+    formula: "end_time - start_time"
+
+# 인덱스
+indexes:
+  - fields: [start_time]
+  - fields: [process_id]
+  - fields: [recipe_id]
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_TRACK_IN_OUT"
+    columnMapping:
+      process_id: "STEP_ID"
+      recipe_id: "RECIPE_ID"
+      start_time: "TRACK_IN_TIME"
+      end_time: "TRACK_OUT_TIME"
+      status: "TRACK_STATUS"

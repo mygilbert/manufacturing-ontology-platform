@@ -1,0 +1,136 @@
+# Wafer Object Type
+# 개별 웨이퍼를 나타내는 온톨로지 객체
+
+objectType: Wafer
+version: "1.0.0"
+description: "개별 웨이퍼 단위"
+
+# 기본 키
+primaryKey: wafer_id
+
+# 속성 정의
+properties:
+  wafer_id:
+    type: string
+    description: "웨이퍼 고유 식별자 (LOT_ID + SLOT_NO)"
+    required: true
+    indexed: true
+    example: "LOT20231201001-01"
+
+  lot_id:
+    type: string
+    description: "소속 Lot ID"
+    required: true
+    indexed: true
+    example: "LOT20231201001"
+
+  slot_no:
+    type: integer
+    description: "카세트 내 슬롯 번호"
+    required: true
+    min: 1
+    max: 25
+    example: 1
+
+  status:
+    type: enum
+    description: "웨이퍼 상태"
+    required: true
+    values:
+      - GOOD       # 양품
+      - REJECT     # 불량
+      - HOLD       # 보류
+      - SCRAPPED   # 폐기
+      - IN_PROCESS # 처리 중
+    default: "IN_PROCESS"
+
+  bin_code:
+    type: string
+    description: "Bin 코드 (최종 테스트 결과)"
+    required: false
+    example: "BIN01"
+
+  defect_count:
+    type: integer
+    description: "결함 수"
+    required: false
+    default: 0
+
+  die_count:
+    type: integer
+    description: "다이 수"
+    required: false
+
+  good_die_count:
+    type: integer
+    description: "양품 다이 수"
+    required: false
+
+  wafer_size:
+    type: enum
+    description: "웨이퍼 크기"
+    values:
+      - "200mm"
+      - "300mm"
+      - "450mm"
+    default: "300mm"
+
+  created_at:
+    type: datetime
+    description: "웨이퍼 생성 시간"
+    required: true
+
+  completed_at:
+    type: datetime
+    description: "웨이퍼 완료 시간"
+    required: false
+
+# 관계 정의
+outgoingLinks:
+  - linkType: BELONGS_TO
+    targetObject: Lot
+    description: "소속 Lot"
+    cardinality: "N:1"
+
+  - linkType: HAS_MEASUREMENT
+    targetObject: Measurement
+    description: "측정 데이터"
+    cardinality: "1:N"
+
+  - linkType: HAS_DEFECT
+    targetObject: Defect
+    description: "결함 데이터"
+    cardinality: "1:N"
+
+incomingLinks:
+  - linkType: PROCESSED
+    sourceObject: Equipment
+    description: "처리한 설비"
+
+# 파생 속성
+derivedProperties:
+  die_yield:
+    type: float
+    description: "다이 수율 (%)"
+    formula: "(good_die_count / die_count) * 100"
+
+# 인덱스
+indexes:
+  - fields: [wafer_id]
+    unique: true
+  - fields: [lot_id, slot_no]
+    unique: true
+  - fields: [status]
+    unique: false
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_WAFER_MASTER"
+    keyColumn: "WAFER_ID"
+    columnMapping:
+      wafer_id: "WAFER_ID"
+      lot_id: "LOT_ID"
+      slot_no: "SLOT_NO"
+      status: "WAFER_STATUS"
+      created_at: "CREATE_TIME"

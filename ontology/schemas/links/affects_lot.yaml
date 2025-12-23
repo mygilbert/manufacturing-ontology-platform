@@ -1,0 +1,88 @@
+# AFFECTS_LOT Link Type
+# Alarm이 Lot에 영향을 미치는 관계
+
+linkType: AFFECTS_LOT
+version: "1.0.0"
+description: "알람이 Lot에 영향을 미치는 관계"
+
+# 관계 방향
+source:
+  objectType: Alarm
+  cardinality: 1  # 하나의 알람이
+
+target:
+  objectType: Lot
+  cardinality: N  # 여러 Lot에 영향
+
+# Edge 속성
+properties:
+  impact_level:
+    type: enum
+    description: "영향도 수준"
+    required: true
+    values:
+      - CRITICAL     # 치명적 (폐기 가능성)
+      - HIGH         # 높음 (품질 저하)
+      - MEDIUM       # 중간 (추가 검사 필요)
+      - LOW          # 낮음 (기록용)
+      - UNKNOWN      # 미확인
+
+  affected_wafer_count:
+    type: integer
+    description: "영향받은 웨이퍼 수"
+    required: false
+
+  affected_wafer_ids:
+    type: array
+    items:
+      type: string
+    description: "영향받은 웨이퍼 ID 목록"
+    required: false
+
+  disposition:
+    type: enum
+    description: "처분 결정"
+    values:
+      - CONTINUE     # 진행
+      - HOLD         # 보류
+      - REWORK       # 재작업
+      - SCRAP        # 폐기
+      - DOWNGRADE    # 등급 하향
+    required: false
+
+  disposition_by:
+    type: string
+    description: "처분 결정자"
+    required: false
+
+  disposition_time:
+    type: datetime
+    description: "처분 결정 시간"
+    required: false
+
+  estimated_loss:
+    type: float
+    description: "예상 손실 금액"
+    required: false
+    unit: "USD"
+
+  notes:
+    type: string
+    description: "비고"
+    required: false
+
+# 인덱스
+indexes:
+  - fields: [impact_level]
+  - fields: [disposition]
+
+# 데이터 소스 매핑
+sourceMapping:
+  fdc:
+    table: "FDC_ALARM_LOT_IMPACT"
+    columnMapping:
+      impact_level: "IMPACT_LEVEL"
+      affected_wafer_count: "AFFECTED_CNT"
+      disposition: "DISPOSITION"
+      disposition_by: "DECIDED_BY"
+      disposition_time: "DECIDED_TIME"

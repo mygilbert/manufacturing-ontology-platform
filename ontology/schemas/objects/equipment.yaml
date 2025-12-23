@@ -1,0 +1,164 @@
+# Equipment Object Type
+# 설비/장비를 나타내는 온톨로지 객체
+
+objectType: Equipment
+version: "1.0.0"
+description: "제조 공정에서 사용되는 설비/장비를 나타냅니다"
+
+# 기본 키
+primaryKey: equipment_id
+
+# 속성 정의
+properties:
+  equipment_id:
+    type: string
+    description: "설비 고유 식별자"
+    required: true
+    indexed: true
+    example: "EQP-ETCH-001"
+
+  name:
+    type: string
+    description: "설비 이름"
+    required: true
+    example: "Etcher-01"
+
+  type:
+    type: enum
+    description: "설비 유형"
+    required: true
+    values:
+      - DRY_ETCH
+      - WET_ETCH
+      - CVD
+      - PVD
+      - LITHO
+      - CMP
+      - DIFFUSION
+      - ION_IMPLANT
+      - METROLOGY
+      - CLEANING
+    example: "DRY_ETCH"
+
+  status:
+    type: enum
+    description: "설비 상태"
+    required: true
+    values:
+      - RUNNING      # 가동 중
+      - IDLE         # 대기 중
+      - PM           # 예방 정비 중
+      - DOWN         # 고장
+      - ENGINEERING  # 엔지니어링 모드
+    default: "IDLE"
+
+  location:
+    type: string
+    description: "설비 위치 (FAB-ZONE 형식)"
+    required: true
+    example: "FAB1-ZONE2"
+
+  manufacturer:
+    type: string
+    description: "설비 제조사"
+    required: false
+    example: "Applied Materials"
+
+  model:
+    type: string
+    description: "설비 모델명"
+    required: false
+    example: "Centura 5200"
+
+  install_date:
+    type: datetime
+    description: "설치 일자"
+    required: false
+
+  last_pm_date:
+    type: datetime
+    description: "마지막 예방 정비 일자"
+    required: false
+
+  chamber_count:
+    type: integer
+    description: "챔버 수"
+    required: false
+    default: 1
+
+  capabilities:
+    type: array
+    items:
+      type: string
+    description: "설비가 지원하는 공정 목록"
+    required: false
+    example: ["OXIDE_ETCH", "POLY_ETCH", "METAL_ETCH"]
+
+# 시계열 데이터 (FDC 파라미터)
+timeseries:
+  enabled: true
+  parameters:
+    - name: chamber_pressure
+      unit: "mTorr"
+      description: "챔버 압력"
+    - name: rf_power
+      unit: "W"
+      description: "RF 파워"
+    - name: gas_flow
+      unit: "sccm"
+      description: "가스 유량"
+    - name: temperature
+      unit: "C"
+      description: "온도"
+    - name: etch_rate
+      unit: "A/min"
+      description: "식각 속도"
+
+# 관계 정의 (이 객체에서 나가는 관계)
+outgoingLinks:
+  - linkType: PROCESSED_LOT
+    targetObject: Lot
+    description: "이 설비에서 처리한 Lot"
+
+  - linkType: GENERATED_ALARM
+    targetObject: Alarm
+    description: "이 설비에서 발생한 알람"
+
+  - linkType: USES_RECIPE
+    targetObject: Recipe
+    description: "이 설비에서 사용하는 레시피"
+
+# 관계 정의 (이 객체로 들어오는 관계)
+incomingLinks:
+  - linkType: LOCATED_IN
+    sourceObject: Process
+    description: "이 설비가 속한 공정"
+
+# 인덱스 설정
+indexes:
+  - fields: [equipment_id]
+    unique: true
+  - fields: [type, status]
+    unique: false
+  - fields: [location]
+    unique: false
+
+# 데이터 소스 매핑 (레거시 시스템)
+sourceMapping:
+  fdc:
+    table: "FDC_EQUIPMENT_MASTER"
+    keyColumn: "EQUIP_ID"
+    columnMapping:
+      equipment_id: "EQUIP_ID"
+      name: "EQUIP_NAME"
+      type: "EQUIP_TYPE"
+      status: "EQUIP_STATUS"
+      location: "EQUIP_LOCATION"
+  mes:
+    table: "MES_EQUIPMENT"
+    keyColumn: "EQP_ID"
+    columnMapping:
+      equipment_id: "EQP_ID"
+      name: "EQP_NAME"
+      manufacturer: "VENDOR"
+      model: "MODEL_NO"

@@ -1,0 +1,163 @@
+{
+  "type": "record",
+  "name": "AlarmEvent",
+  "namespace": "com.manufacturing.ontology.alarm",
+  "doc": "알람 이벤트",
+  "fields": [
+    {
+      "name": "alarm_id",
+      "type": "string",
+      "doc": "알람 고유 식별자"
+    },
+    {
+      "name": "alarm_code",
+      "type": "string",
+      "doc": "알람 코드"
+    },
+    {
+      "name": "alarm_name",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "알람 이름"
+    },
+    {
+      "name": "source_system",
+      "type": {
+        "type": "enum",
+        "name": "SourceSystem",
+        "symbols": ["FDC", "SPC", "EQUIPMENT", "MES", "ANALYTICS"]
+      },
+      "doc": "알람 발생 시스템"
+    },
+    {
+      "name": "severity",
+      "type": {
+        "type": "enum",
+        "name": "AlarmSeverity",
+        "symbols": ["CRITICAL", "MAJOR", "MINOR", "WARNING", "INFO"]
+      },
+      "doc": "알람 심각도"
+    },
+    {
+      "name": "category",
+      "type": {
+        "type": "enum",
+        "name": "AlarmCategory",
+        "symbols": ["FAULT", "OOC", "OOS", "DRIFT", "ANOMALY", "MAINTENANCE", "INTERLOCK"]
+      },
+      "doc": "알람 유형"
+    },
+    {
+      "name": "equipment_id",
+      "type": "string",
+      "doc": "관련 설비 ID"
+    },
+    {
+      "name": "chamber_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "챔버 ID"
+    },
+    {
+      "name": "process_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "관련 공정 ID"
+    },
+    {
+      "name": "lot_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "관련 Lot ID"
+    },
+    {
+      "name": "wafer_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "관련 Wafer ID"
+    },
+    {
+      "name": "param_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "관련 파라미터 ID"
+    },
+    {
+      "name": "occurred_at",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "알람 발생 시간"
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "doc": "알람 메시지"
+    },
+    {
+      "name": "description",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "상세 설명"
+    },
+    {
+      "name": "triggered_value",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "알람을 발생시킨 값"
+    },
+    {
+      "name": "threshold_value",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "임계값"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "AlarmStatus",
+        "symbols": ["ACTIVE", "ACKNOWLEDGED", "RESOLVED", "SUPPRESSED"]
+      },
+      "default": "ACTIVE",
+      "doc": "알람 상태"
+    },
+    {
+      "name": "affected_lots",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "default": [],
+      "doc": "영향받은 Lot 목록"
+    },
+    {
+      "name": "affected_wafer_count",
+      "type": ["null", "int"],
+      "default": null,
+      "doc": "영향받은 Wafer 수"
+    },
+    {
+      "name": "pattern_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "감지된 패턴 ID (CEP)"
+    },
+    {
+      "name": "confidence_score",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "신뢰도 점수 (ML 기반)"
+    },
+    {
+      "name": "context",
+      "type": ["null", {
+        "type": "map",
+        "values": "string"
+      }],
+      "default": null,
+      "doc": "추가 컨텍스트 정보"
+    }
+  ]
+}

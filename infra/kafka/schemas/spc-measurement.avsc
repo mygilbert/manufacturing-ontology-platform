@@ -1,0 +1,148 @@
+{
+  "type": "record",
+  "name": "SpcMeasurement",
+  "namespace": "com.manufacturing.ontology.spc",
+  "doc": "SPC 품질 측정값",
+  "fields": [
+    {
+      "name": "measurement_id",
+      "type": "string",
+      "doc": "측정 고유 식별자"
+    },
+    {
+      "name": "equipment_id",
+      "type": "string",
+      "doc": "설비 ID"
+    },
+    {
+      "name": "process_id",
+      "type": "string",
+      "doc": "공정 ID"
+    },
+    {
+      "name": "lot_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Lot ID"
+    },
+    {
+      "name": "wafer_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Wafer ID"
+    },
+    {
+      "name": "item_id",
+      "type": "string",
+      "doc": "측정 항목 ID"
+    },
+    {
+      "name": "item_name",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "측정 항목 이름"
+    },
+    {
+      "name": "value",
+      "type": "double",
+      "doc": "측정값"
+    },
+    {
+      "name": "unit",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "단위"
+    },
+    {
+      "name": "timestamp",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "측정 시간"
+    },
+    {
+      "name": "usl",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "상한 규격"
+    },
+    {
+      "name": "lsl",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "하한 규격"
+    },
+    {
+      "name": "ucl",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "상한 관리한계"
+    },
+    {
+      "name": "lcl",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "하한 관리한계"
+    },
+    {
+      "name": "target",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "목표값"
+    },
+    {
+      "name": "subgroup_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "서브그룹 ID"
+    },
+    {
+      "name": "subgroup_size",
+      "type": "int",
+      "default": 1,
+      "doc": "서브그룹 크기"
+    },
+    {
+      "name": "statistics",
+      "type": ["null", {
+        "type": "record",
+        "name": "SpcStatistics",
+        "fields": [
+          {"name": "x_bar", "type": ["null", "double"], "default": null},
+          {"name": "range_val", "type": ["null", "double"], "default": null},
+          {"name": "std_dev", "type": ["null", "double"], "default": null},
+          {"name": "cp", "type": ["null", "double"], "default": null},
+          {"name": "cpk", "type": ["null", "double"], "default": null}
+        ]
+      }],
+      "default": null,
+      "doc": "SPC 통계"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "SpcStatus",
+        "symbols": ["NORMAL", "OOC", "OOS", "TREND", "SHIFT"]
+      },
+      "default": "NORMAL",
+      "doc": "SPC 상태"
+    },
+    {
+      "name": "rule_violations",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "default": [],
+      "doc": "위반된 SPC 규칙 목록"
+    },
+    {
+      "name": "source_system",
+      "type": "string",
+      "default": "SPC",
+      "doc": "소스 시스템"
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "type": "record",
+  "name": "FdcMeasurement",
+  "namespace": "com.manufacturing.ontology.fdc",
+  "doc": "FDC 파라미터 측정값",
+  "fields": [
+    {
+      "name": "measurement_id",
+      "type": "string",
+      "doc": "측정 고유 식별자"
+    },
+    {
+      "name": "equipment_id",
+      "type": "string",
+      "doc": "설비 ID"
+    },
+    {
+      "name": "chamber_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "챔버 ID"
+    },
+    {
+      "name": "recipe_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "레시피 ID"
+    },
+    {
+      "name": "lot_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Lot ID"
+    },
+    {
+      "name": "wafer_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Wafer ID"
+    },
+    {
+      "name": "slot_no",
+      "type": ["null", "int"],
+      "default": null,
+      "doc": "슬롯 번호"
+    },
+    {
+      "name": "param_id",
+      "type": "string",
+      "doc": "파라미터 ID"
+    },
+    {
+      "name": "param_name",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "파라미터 이름"
+    },
+    {
+      "name": "value",
+      "type": "double",
+      "doc": "측정값"
+    },
+    {
+      "name": "unit",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "단위"
+    },
+    {
+      "name": "timestamp",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "측정 시간 (Unix timestamp ms)"
+    },
+    {
+      "name": "usl",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "상한 규격 (Upper Spec Limit)"
+    },
+    {
+      "name": "lsl",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "하한 규격 (Lower Spec Limit)"
+    },
+    {
+      "name": "target",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "목표값"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "MeasurementStatus",
+        "symbols": ["NORMAL", "WARNING", "ALARM", "OUTLIER"]
+      },
+      "default": "NORMAL",
+      "doc": "측정 상태"
+    },
+    {
+      "name": "source_system",
+      "type": "string",
+      "default": "FDC",
+      "doc": "소스 시스템"
+    },
+    {
+      "name": "event_time",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "이벤트 발생 시간"
+    },
+    {
+      "name": "processing_time",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "처리 시간"
+    }
+  ]
+}
