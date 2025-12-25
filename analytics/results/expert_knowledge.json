@@ -1,0 +1,175 @@
+{
+  "exported_at": "2025-12-25T10:27:41.651971",
+  "source_file": "templates/expert_knowledge_template.xlsx",
+  "causal_relationships": [
+    {
+      "source": "RF_Power",
+      "target": "Etch_Rate",
+      "relation_type": "CAUSES",
+      "direction": "positive",
+      "lag_range": [
+        1.0,
+        5.0
+      ],
+      "confidence": 1.0,
+      "physics": "RF 파워가 플라즈마 밀도를 높여 식각 속도 증가"
+    },
+    {
+      "source": "Chamber_Pressure",
+      "target": "Plasma_Density",
+      "relation_type": "CAUSES",
+      "direction": "negative",
+      "lag_range": [
+        0.0,
+        2.0
+      ],
+      "confidence": 1.0,
+      "physics": "압력 증가 시 평균자유행로 감소로 플라즈마 밀도 하락"
+    },
+    {
+      "source": "Gas_Flow_Rate",
+      "target": "Chamber_Pressure",
+      "relation_type": "CAUSES",
+      "direction": "positive",
+      "lag_range": [
+        2.0,
+        10.0
+      ],
+      "confidence": 0.9,
+      "physics": "가스 유량 증가 시 배기 용량 초과하면 압력 상승"
+    },
+    {
+      "source": "ESC_Temperature",
+      "target": "Wafer_Temperature",
+      "relation_type": "CAUSES",
+      "direction": "positive",
+      "lag_range": [
+        5.0,
+        30.0
+      ],
+      "confidence": 0.95,
+      "physics": "정전척 온도가 웨이퍼로 열전달"
+    },
+    {
+      "source": "Throttle_Position",
+      "target": "Chamber_Pressure",
+      "relation_type": "CAUSES",
+      "direction": "negative",
+      "lag_range": [
+        1.0,
+        5.0
+      ],
+      "confidence": 1.0,
+      "physics": "스로틀 열림 → 배기 증가 → 압력 감소"
+    }
+  ],
+  "alarm_causes": [
+    {
+      "alarm_code": "ETCH_RATE_OOS",
+      "cause_parameter": "RF_Power",
+      "condition": "deviation > 5%",
+      "probability": 0.7,
+      "action": "RF Power 점검 및 재설정",
+      "priority": 1
+    },
+    {
+      "alarm_code": "ETCH_RATE_OOS",
+      "cause_parameter": "Chamber_Pressure",
+      "condition": "out_of_spec",
+      "probability": 0.5,
+      "action": "Throttle valve 점검",
+      "priority": 2
+    },
+    {
+      "alarm_code": "ETCH_RATE_OOS",
+      "cause_parameter": "Gas_Flow_Rate",
+      "condition": "unstable",
+      "probability": 0.3,
+      "action": "MFC 점검",
+      "priority": 3
+    },
+    {
+      "alarm_code": "PARTICLE_ALARM",
+      "cause_parameter": "Chamber_Pressure",
+      "condition": "sudden_change",
+      "probability": 0.6,
+      "action": "챔버 클리닝",
+      "priority": 1
+    },
+    {
+      "alarm_code": "PARTICLE_ALARM",
+      "cause_parameter": "ESC_Temperature",
+      "condition": "gradient > 5C/min",
+      "probability": 0.4,
+      "action": "온도 안정화 대기",
+      "priority": 2
+    },
+    {
+      "alarm_code": "UNIFORMITY_FAIL",
+      "cause_parameter": "Gas_Flow_Ratio",
+      "condition": "imbalance > 3%",
+      "probability": 0.8,
+      "action": "가스 비율 조정",
+      "priority": 1
+    }
+  ],
+  "leading_indicators": [
+    {
+      "target_event": "EQUIPMENT_DOWN",
+      "indicator": "Vibration",
+      "pattern": "increasing_trend",
+      "lead_time": 300.0
+    },
+    {
+      "target_event": "EQUIPMENT_DOWN",
+      "indicator": "Motor_Current",
+      "pattern": "spike",
+      "lead_time": 60.0
+    },
+    {
+      "target_event": "QUALITY_FAIL",
+      "indicator": "Etch_Rate",
+      "pattern": "drift",
+      "lead_time": 600.0
+    },
+    {
+      "target_event": "QUALITY_FAIL",
+      "indicator": "Uniformity",
+      "pattern": "degradation",
+      "lead_time": 1800.0
+    },
+    {
+      "target_event": "PM_REQUIRED",
+      "indicator": "RF_Reflect",
+      "pattern": "gradual_increase",
+      "lead_time": 86400.0
+    }
+  ],
+  "impossible_relationships": [
+    {
+      "param1": "Wafer_ID",
+      "param2": "Etch_Rate",
+      "reason": "Wafer ID는 식별자일 뿐 물리량이 아님"
+    },
+    {
+      "param1": "Recipe_Name",
+      "param2": "Chamber_Pressure",
+      "reason": "Recipe는 설정값 묶음, 직접적 원인 아님"
+    },
+    {
+      "param1": "Lot_ID",
+      "param2": "Quality",
+      "reason": "Lot ID는 그룹핑 정보"
+    },
+    {
+      "param1": "Timestamp",
+      "param2": "Any_Parameter",
+      "reason": "시간 자체는 원인이 아님"
+    },
+    {
+      "param1": "Operator_ID",
+      "param2": "Defect_Rate",
+      "reason": "작업자 ID 자체는 원인 아님 (편향 주의)"
+    }
+  ]
+}

@@ -1,0 +1,250 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>관계 발견 리포트</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        .section { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #4CAF50; color: white; }
+        tr:nth-child(even) { background: #f2f2f2; }
+        .confidence-high { color: green; font-weight: bold; }
+        .confidence-medium { color: orange; }
+        .confidence-low { color: red; }
+    </style>
+</head>
+<body>
+    <h1>암묵적 관계 발견 리포트</h1>
+    <p>분석 시각: 2025-12-24 23:26:23</p>
+
+    <div class="section">
+        <h2>요약</h2>
+        <ul>
+            <li>분석 샘플: 5,000개</li>
+            <li>파라미터: 5개</li>
+            <li>발견된 관계: 59개</li>
+            <li>높은 신뢰도: 35개</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>발견된 관계</h2>
+        <table>
+            <tr>
+                <th>#</th>
+                <th>Source</th>
+                <th>→</th>
+                <th>Target</th>
+                <th>유형</th>
+                <th>방법</th>
+                <th>신뢰도</th>
+            </tr>
+
+            <tr>
+                <td>1</td>
+                <td>PRESSURE_HIGH</td>
+                <td>→</td>
+                <td>RF_ADJUST</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.321</td>
+            </tr>
+
+            <tr>
+                <td>2</td>
+                <td>RF_ADJUST</td>
+                <td>→</td>
+                <td>ETCH_RATE_OOS</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.111</td>
+            </tr>
+
+            <tr>
+                <td>3</td>
+                <td>RF_Power</td>
+                <td>→</td>
+                <td>Etch_Rate</td>
+                <td>INFLUENCES</td>
+                <td>transfer_entropy</td>
+                <td class="confidence-high">1.000</td>
+            </tr>
+
+            <tr>
+                <td>4</td>
+                <td>Pressure</td>
+                <td>→</td>
+                <td>RF_Power</td>
+                <td>INFLUENCES</td>
+                <td>transfer_entropy</td>
+                <td class="confidence-high">1.000</td>
+            </tr>
+
+            <tr>
+                <td>5</td>
+                <td>Pressure</td>
+                <td>→</td>
+                <td>Gas_Flow</td>
+                <td>INFLUENCES</td>
+                <td>transfer_entropy</td>
+                <td class="confidence-high">1.000</td>
+            </tr>
+
+            <tr>
+                <td>6</td>
+                <td>Pressure</td>
+                <td>→</td>
+                <td>Temperature</td>
+                <td>INFLUENCES</td>
+                <td>transfer_entropy</td>
+                <td class="confidence-high">1.000</td>
+            </tr>
+
+            <tr>
+                <td>7</td>
+                <td>Temperature</td>
+                <td>→</td>
+                <td>Etch_Rate</td>
+                <td>INFLUENCES</td>
+                <td>transfer_entropy</td>
+                <td class="confidence-high">1.000</td>
+            </tr>
+
+            <tr>
+                <td>8</td>
+                <td>ALARM_TRIGGER</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.000</td>
+            </tr>
+
+            <tr>
+                <td>9</td>
+                <td>ALARM_TRIGGER</td>
+                <td>→</td>
+                <td>TEMP_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.973</td>
+            </tr>
+
+            <tr>
+                <td>10</td>
+                <td>ETCH_RATE_OOS</td>
+                <td>→</td>
+                <td>RF_ADJUST</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.967</td>
+            </tr>
+
+            <tr>
+                <td>11</td>
+                <td>RF_ADJUST</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.954</td>
+            </tr>
+
+            <tr>
+                <td>12</td>
+                <td>TEMP_HIGH</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.954</td>
+            </tr>
+
+            <tr>
+                <td>13</td>
+                <td>PM_END</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.929</td>
+            </tr>
+
+            <tr>
+                <td>14</td>
+                <td>ETCH_RATE_OOS</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.918</td>
+            </tr>
+
+            <tr>
+                <td>15</td>
+                <td>RF_ADJUST</td>
+                <td>→</td>
+                <td>ETCH_RATE_OOS</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.908</td>
+            </tr>
+
+            <tr>
+                <td>16</td>
+                <td>TEMP_HIGH</td>
+                <td>→</td>
+                <td>RF_ADJUST</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.908</td>
+            </tr>
+
+            <tr>
+                <td>17</td>
+                <td>RF_ADJUST</td>
+                <td>→</td>
+                <td>TEMP_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.908</td>
+            </tr>
+
+            <tr>
+                <td>18</td>
+                <td>ALARM_TRIGGER</td>
+                <td>→</td>
+                <td>RF_ADJUST</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.892</td>
+            </tr>
+
+            <tr>
+                <td>19</td>
+                <td>PRESSURE_HIGH</td>
+                <td>→</td>
+                <td>RF_ADJUST</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.886</td>
+            </tr>
+
+            <tr>
+                <td>20</td>
+                <td>PRESSURE_HIGH</td>
+                <td>→</td>
+                <td>TEMP_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.886</td>
+            </tr>
+
+        </table>
+    </div>
+</body>
+</html>

@@ -1,0 +1,250 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>관계 발견 리포트</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        .section { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #4CAF50; color: white; }
+        tr:nth-child(even) { background: #f2f2f2; }
+        .confidence-high { color: green; font-weight: bold; }
+        .confidence-medium { color: orange; }
+        .confidence-low { color: red; }
+    </style>
+</head>
+<body>
+    <h1>암묵적 관계 발견 리포트</h1>
+    <p>분석 시각: 2025-12-24 23:38:11</p>
+
+    <div class="section">
+        <h2>요약</h2>
+        <ul>
+            <li>분석 샘플: 86,400개</li>
+            <li>파라미터: 5개</li>
+            <li>발견된 관계: 152개</li>
+            <li>높은 신뢰도: 124개</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>발견된 관계</h2>
+        <table>
+            <tr>
+                <th>#</th>
+                <th>Source</th>
+                <th>→</th>
+                <th>Target</th>
+                <th>유형</th>
+                <th>방법</th>
+                <th>신뢰도</th>
+            </tr>
+
+            <tr>
+                <td>1</td>
+                <td>FLOW_RATE_HIGH</td>
+                <td>→</td>
+                <td>FLOW_RATE_HIGH</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">2.138</td>
+            </tr>
+
+            <tr>
+                <td>2</td>
+                <td>CURRENT_LOW</td>
+                <td>→</td>
+                <td>CURRENT_LOW</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">2.128</td>
+            </tr>
+
+            <tr>
+                <td>3</td>
+                <td>PRESSURE_HIGH</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.936</td>
+            </tr>
+
+            <tr>
+                <td>4</td>
+                <td>VIBRATION_HIGH</td>
+                <td>→</td>
+                <td>VIBRATION_HIGH</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.915</td>
+            </tr>
+
+            <tr>
+                <td>5</td>
+                <td>CURRENT_HIGH</td>
+                <td>→</td>
+                <td>CURRENT_HIGH</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.567</td>
+            </tr>
+
+            <tr>
+                <td>6</td>
+                <td>PRESSURE_LOW</td>
+                <td>→</td>
+                <td>PRESSURE_LOW</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.528</td>
+            </tr>
+
+            <tr>
+                <td>7</td>
+                <td>TEMPERATURE_LOW</td>
+                <td>→</td>
+                <td>TEMPERATURE_LOW</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.443</td>
+            </tr>
+
+            <tr>
+                <td>8</td>
+                <td>VIBRATION_LOW</td>
+                <td>→</td>
+                <td>VIBRATION_LOW</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.418</td>
+            </tr>
+
+            <tr>
+                <td>9</td>
+                <td>FLOW_RATE_LOW</td>
+                <td>→</td>
+                <td>FLOW_RATE_LOW</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.298</td>
+            </tr>
+
+            <tr>
+                <td>10</td>
+                <td>TEMPERATURE_HIGH</td>
+                <td>→</td>
+                <td>TEMPERATURE_HIGH</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.163</td>
+            </tr>
+
+            <tr>
+                <td>11</td>
+                <td>CURRENT_HIGH</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.074</td>
+            </tr>
+
+            <tr>
+                <td>12</td>
+                <td>PRESSURE_LOW</td>
+                <td>→</td>
+                <td>CURRENT_LOW</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">1.021</td>
+            </tr>
+
+            <tr>
+                <td>13</td>
+                <td>ANOMALY_END</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.968</td>
+            </tr>
+
+            <tr>
+                <td>14</td>
+                <td>ANOMALY_START</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.967</td>
+            </tr>
+
+            <tr>
+                <td>15</td>
+                <td>CURRENT_LOW</td>
+                <td>→</td>
+                <td>PRESSURE_LOW</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.961</td>
+            </tr>
+
+            <tr>
+                <td>16</td>
+                <td>VIBRATION_HIGH</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.958</td>
+            </tr>
+
+            <tr>
+                <td>17</td>
+                <td>VIBRATION_LOW</td>
+                <td>→</td>
+                <td>PRESSURE_LOW</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.958</td>
+            </tr>
+
+            <tr>
+                <td>18</td>
+                <td>FLOW_RATE_LOW</td>
+                <td>→</td>
+                <td>PRESSURE_LOW</td>
+                <td>PRECEDES</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.957</td>
+            </tr>
+
+            <tr>
+                <td>19</td>
+                <td>VIBRATION_LOW</td>
+                <td>→</td>
+                <td>CURRENT_LOW</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.941</td>
+            </tr>
+
+            <tr>
+                <td>20</td>
+                <td>CURRENT_HIGH</td>
+                <td>→</td>
+                <td>PRESSURE_HIGH</td>
+                <td>CO_OCCURS</td>
+                <td>pattern_mining</td>
+                <td class="confidence-high">0.940</td>
+            </tr>
+
+        </table>
+    </div>
+</body>
+</html>

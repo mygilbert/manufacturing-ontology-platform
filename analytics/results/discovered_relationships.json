@@ -1,0 +1,195 @@
+{
+  "timestamp": "2025-12-24T23:26:23.178847",
+  "data_info": {
+    "n_samples": 5000,
+    "n_parameters": 5,
+    "parameters": [
+      "RF_Power",
+      "Pressure",
+      "Gas_Flow",
+      "Temperature",
+      "Etch_Rate"
+    ],
+    "n_events": 783,
+    "time_range": {
+      "start": "2024-01-01 00:00:00",
+      "end": "2024-01-01 01:23:19"
+    }
+  },
+  "correlation_summary": {
+    "total_analyzed": 30,
+    "significant_found": 0,
+    "methods_used": [
+      "pearson",
+      "spearman",
+      "kendall"
+    ],
+    "avg_correlation": 0.09813666666666666,
+    "max_correlation": 0.3833,
+    "with_time_lag": 0,
+    "high_confidence": 0
+  },
+  "causality_summary": {
+    "total_tested": 20,
+    "causal_found": 14,
+    "bidirectional_pairs": 7,
+    "avg_lag": 9.857142857142858,
+    "high_confidence": 7,
+    "methods_used": [
+      "transfer_entropy"
+    ]
+  },
+  "pattern_summary": {
+    "total_patterns": 91,
+    "sequential_patterns": 52,
+    "co_occurrence_patterns": 39,
+    "avg_support": 0.37226970560303896,
+    "avg_confidence": 0.5930498836297902,
+    "max_pattern_length": 5,
+    "high_confidence": 23
+  },
+  "total_relationships": 59,
+  "high_confidence_count": 35,
+  "top_relationships": [
+    {
+      "source": "PRESSURE_HIGH",
+      "target": "RF_ADJUST",
+      "relation_type": "PRECEDES",
+      "method": "pattern_mining",
+      "confidence": 1.3209876543209877
+    },
+    {
+      "source": "RF_ADJUST",
+      "target": "ETCH_RATE_OOS",
+      "relation_type": "PRECEDES",
+      "method": "pattern_mining",
+      "confidence": 1.1111111111111112
+    },
+    {
+      "source": "RF_Power",
+      "target": "Etch_Rate",
+      "relation_type": "INFLUENCES",
+      "method": "transfer_entropy",
+      "confidence": 1.0
+    },
+    {
+      "source": "Pressure",
+      "target": "RF_Power",
+      "relation_type": "INFLUENCES",
+      "method": "transfer_entropy",
+      "confidence": 1.0
+    },
+    {
+      "source": "Pressure",
+      "target": "Gas_Flow",
+      "relation_type": "INFLUENCES",
+      "method": "transfer_entropy",
+      "confidence": 1.0
+    },
+    {
+      "source": "Pressure",
+      "target": "Temperature",
+      "relation_type": "INFLUENCES",
+      "method": "transfer_entropy",
+      "confidence": 1.0
+    },
+    {
+      "source": "Temperature",
+      "target": "Etch_Rate",
+      "relation_type": "INFLUENCES",
+      "method": "transfer_entropy",
+      "confidence": 1.0
+    },
+    {
+      "source": "ALARM_TRIGGER",
+      "target": "PRESSURE_HIGH",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 1.0
+    },
+    {
+      "source": "ALARM_TRIGGER",
+      "target": "TEMP_HIGH",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.972972972972973
+    },
+    {
+      "source": "ETCH_RATE_OOS",
+      "target": "RF_ADJUST",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.9672131147540983
+    },
+    {
+      "source": "RF_ADJUST",
+      "target": "PRESSURE_HIGH",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.9538461538461539
+    },
+    {
+      "source": "TEMP_HIGH",
+      "target": "PRESSURE_HIGH",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.9538461538461539
+    },
+    {
+      "source": "PM_END",
+      "target": "PRESSURE_HIGH",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.9285714285714286
+    },
+    {
+      "source": "ETCH_RATE_OOS",
+      "target": "PRESSURE_HIGH",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.9180327868852459
+    },
+    {
+      "source": "RF_ADJUST",
+      "target": "ETCH_RATE_OOS",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.9076923076923077
+    },
+    {
+      "source": "TEMP_HIGH",
+      "target": "RF_ADJUST",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.9076923076923077
+    },
+    {
+      "source": "RF_ADJUST",
+      "target": "TEMP_HIGH",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.9076923076923077
+    },
+    {
+      "source": "ALARM_TRIGGER",
+      "target": "RF_ADJUST",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.8918918918918919
+    },
+    {
+      "source": "PRESSURE_HIGH",
+      "target": "RF_ADJUST",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.8857142857142857
+    },
+    {
+      "source": "PRESSURE_HIGH",
+      "target": "TEMP_HIGH",
+      "relation_type": "CO_OCCURS",
+      "method": "pattern_mining",
+      "confidence": 0.8857142857142857
+    }
+  ]
+}
