@@ -62,6 +62,7 @@ export interface Recipe {
 // Alarm Types
 // =========================================================
 export type AlarmSeverity = 'CRITICAL' | 'WARNING' | 'INFO';
+export type AlarmStatus = 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED' | 'ESCALATED';
 
 export interface Alarm {
   alarm_id: string;
@@ -71,6 +72,14 @@ export interface Alarm {
   message?: string;
   occurred_at: string;
   resolved_at?: string;
+  // Acknowledge workflow
+  status?: AlarmStatus;
+  acknowledged_at?: string;
+  acknowledged_by?: string;
+  acknowledge_note?: string;
+  // Escalation
+  escalated_at?: string;
+  escalated_to?: string;
 }
 
 // =========================================================

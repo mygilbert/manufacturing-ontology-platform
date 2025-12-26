@@ -107,8 +107,7 @@ class OntologyService:
 
             result = []
             for row in rows:
-                import json
-                equipment = json.loads(str(row['equipment']))
+                equipment = self._parse_agtype(str(row['equipment']))
                 result.append(self._parse_vertex(equipment))
 
             # 캐시 저장 (5분)
@@ -137,8 +136,7 @@ class OntologyService:
                 row = await conn.fetchrow(query)
 
             if row:
-                import json
-                equipment = json.loads(str(row['equipment']))
+                equipment = self._parse_agtype(str(row['equipment']))
                 return self._parse_vertex(equipment)
             return None
 
@@ -164,8 +162,7 @@ class OntologyService:
                 await conn.execute("SET search_path = ag_catalog, '$user', public")
                 row = await conn.fetchrow(query)
 
-            import json
-            equipment = json.loads(str(row['equipment']))
+            equipment = self._parse_agtype(str(row['equipment']))
             return self._parse_vertex(equipment)
 
         except Exception as e:
@@ -198,8 +195,7 @@ class OntologyService:
 
             result = []
             for row in rows:
-                import json
-                alarm = json.loads(str(row['alarm']))
+                alarm = self._parse_agtype(str(row['alarm']))
                 result.append(self._parse_vertex(alarm))
 
             return result
@@ -291,8 +287,7 @@ class OntologyService:
 
             result = []
             for row in rows:
-                import json
-                lot = json.loads(str(row['lot']))
+                lot = self._parse_agtype(str(row['lot']))
                 result.append(self._parse_vertex(lot))
 
             return result
@@ -318,8 +313,7 @@ class OntologyService:
                 row = await conn.fetchrow(query)
 
             if row:
-                import json
-                lot = json.loads(str(row['lot']))
+                lot = self._parse_agtype(str(row['lot']))
                 result = self._parse_vertex(lot)
                 result['wafer_count'] = int(str(row['wafer_count']))
                 return result
@@ -348,8 +342,7 @@ class OntologyService:
             edges = []
 
             for row in rows:
-                import json
-                path = json.loads(str(row['path']))
+                path = self._parse_agtype(str(row['path']))
                 self._parse_path(path, nodes, edges)
 
             return {
@@ -379,8 +372,7 @@ class OntologyService:
 
             result = []
             for row in rows:
-                import json
-                equipment = json.loads(str(row['equipment']))
+                equipment = self._parse_agtype(str(row['equipment']))
                 relation = json.loads(str(row['relation']))
                 result.append({
                     "equipment": self._parse_vertex(equipment),
@@ -410,11 +402,20 @@ class OntologyService:
         rel_filter = f"[:{('|'.join(relation_types))}]" if relation_types else ""
 
         if direction == "forward":
-            pattern = f"(n:{start_type} {{{id_field}: '{start_id}'}})-{rel_filter}*1..{depth}->()"
+            if rel_filter:
+                pattern = f"(n:{start_type} {{{id_field}: '{start_id}'}})-{rel_filter}*1..{depth}->(m)"
+            else:
+                pattern = f"(n:{start_type} {{{id_field}: '{start_id}'}})-[*1..{depth}]->(m)"
         elif direction == "backward":
-            pattern = f"()-{rel_filter}*1..{depth}->(n:{start_type} {{{id_field}: '{start_id}'}})"
+            if rel_filter:
+                pattern = f"(m)-{rel_filter}*1..{depth}->(n:{start_type} {{{id_field}: '{start_id}'}})"
+            else:
+                pattern = f"(m)-[*1..{depth}]->(n:{start_type} {{{id_field}: '{start_id}'}})"
         else:
-            pattern = f"(n:{start_type} {{{id_field}: '{start_id}'}})-{rel_filter}*1..{depth}-()"
+            if rel_filter:
+                pattern = f"(n:{start_type} {{{id_field}: '{start_id}'}})-{rel_filter}*1..{depth}-(m)"
+            else:
+                pattern = f"(n:{start_type} {{{id_field}: '{start_id}'}})-[*1..{depth}]-(m)"
 
         query = f"""
         SELECT * FROM cypher('{self.graph_name}', $$
@@ -433,8 +434,7 @@ class OntologyService:
             edges = []
 
             for row in rows:
-                import json
-                path = json.loads(str(row['path']))
+                path = self._parse_agtype(str(row['path']))
                 self._parse_path(path, nodes, edges)
 
             return {
@@ -474,8 +474,7 @@ class OntologyService:
                 row = await conn.fetchrow(query)
 
             if row:
-                import json
-                path = json.loads(str(row['path']))
+                path = self._parse_agtype(str(row['path']))
                 nodes = {}
                 edges = []
                 self._parse_path(path, nodes, edges)
@@ -517,9 +516,8 @@ class OntologyService:
 
             result = []
             for row in rows:
-                import json
-                neighbor = json.loads(str(row['neighbor']))
-                relation = json.loads(str(row['relation']))
+                neighbor = self._parse_agtype(str(row['neighbor']))
+                relation = self._parse_agtype(str(row['relation']))
                 result.append({
                     "node": self._parse_vertex(neighbor),
                     "relation": self._parse_edge(relation),
@@ -568,8 +566,7 @@ class OntologyService:
                 await conn.execute("SET search_path = ag_catalog, '$user', public")
                 row = await conn.fetchrow(query)
 
-            import json
-            rel = json.loads(str(row['relation']))
+            rel = self._parse_agtype(str(row['relation']))
             return self._parse_edge(rel)
 
         except Exception as e:
@@ -602,10 +599,9 @@ class OntologyService:
 
             result = []
             for row in rows:
-                import json
-                from_node = json.loads(str(row['from_node']))
-                rel = json.loads(str(row['relation']))
-                to_node = json.loads(str(row['to_node']))
+                from_node = self._parse_agtype(str(row['from_node']))
+                rel = self._parse_agtype(str(row['relation']))
+                to_node = self._parse_agtype(str(row['to_node']))
 
                 result.append({
                     "from": self._parse_vertex(from_node),
@@ -623,41 +619,85 @@ class OntologyService:
     # 헬퍼 메서드
     # =========================================================
 
-    def _parse_vertex(self, vertex: Dict) -> Dict[str, Any]:
+    def _parse_agtype(self, agtype_str: str) -> Any:
+        """AGE agtype 문자열을 JSON으로 파싱"""
+        import json
+        import re as regex
+
+        if agtype_str is None:
+            return None
+
+        s = str(agtype_str).strip()
+
+        # 배열 내부의 ::vertex, ::edge 접미사 제거
+        s = regex.sub(r'}::vertex', '}', s)
+        s = regex.sub(r'}::edge', '}', s)
+
+        # 외부 ::path, ::vertex, ::edge 등 접미사 제거
+        s = regex.sub(r'::(vertex|edge|path|numeric|integer|float|string)$', '', s)
+
+        try:
+            return json.loads(s)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse agtype: {e}")
+            return s
+
+    def _parse_vertex(self, vertex: Any) -> Dict[str, Any]:
         """AGE vertex 파싱"""
+        if isinstance(vertex, str):
+            vertex = self._parse_agtype(vertex)
+
         if isinstance(vertex, dict):
-            props = vertex.get('properties', vertex)
-            return {
+            props = vertex.get('properties', {})
+            result = {
                 "id": vertex.get('id'),
                 "label": vertex.get('label'),
-                **props,
             }
+            result.update(props)
+
+            # 필드명 매핑 (그래프 DB 필드 -> API 필드)
+            if 'type' in result and 'equipment_type' not in result:
+                result['equipment_type'] = result['type']
+
+            return result
         return {}
 
-    def _parse_edge(self, edge: Dict) -> Dict[str, Any]:
+    def _parse_edge(self, edge: Any) -> Dict[str, Any]:
         """AGE edge 파싱"""
+        if isinstance(edge, str):
+            edge = self._parse_agtype(edge)
+
         if isinstance(edge, dict):
             props = edge.get('properties', {})
-            return {
+            result = {
                 "id": edge.get('id'),
                 "label": edge.get('label'),
                 "start_id": edge.get('start_id'),
                 "end_id": edge.get('end_id'),
-                **props,
             }
+            result.update(props)
+            return result
         return {}
 
     def _parse_path(self, path: Any, nodes: Dict, edges: List):
         """AGE path 파싱"""
+        if isinstance(path, str):
+            path = self._parse_agtype(path)
+
         if isinstance(path, list):
             for item in path:
-                if isinstance(item, dict):
-                    if 'start_id' in item:  # Edge
-                        edge = self._parse_edge(item)
+                parsed = item
+                if isinstance(item, str):
+                    parsed = self._parse_agtype(item)
+
+                if isinstance(parsed, dict):
+                    if 'start_id' in parsed:
+                        edge = self._parse_edge(parsed)
                         edges.append(edge)
-                    else:  # Vertex
-                        vertex = self._parse_vertex(item)
-                        nodes[vertex.get('id')] = vertex
+                    else:
+                        vertex = self._parse_vertex(parsed)
+                        if vertex.get('id'):
+                            nodes[vertex.get('id')] = vertex
 
 
 # 전역 인스턴스

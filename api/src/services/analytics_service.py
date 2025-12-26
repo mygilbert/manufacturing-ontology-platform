@@ -119,7 +119,7 @@ class AnalyticsService:
         query = """
         SELECT timestamp, param_id, value
         FROM fdc_measurements
-        WHERE equipment_id = $1 AND timestamp BETWEEN $2 AND $3
+        WHERE equipment_id = $1 AND time BETWEEN $2 AND $3
         ORDER BY timestamp
         """
 
@@ -201,7 +201,7 @@ class AnalyticsService:
         query = """
         SELECT timestamp, param_id, value
         FROM fdc_measurements
-        WHERE equipment_id = $1 AND timestamp BETWEEN $2 AND $3
+        WHERE equipment_id = $1 AND time BETWEEN $2 AND $3
         ORDER BY timestamp
         """
 
@@ -288,10 +288,10 @@ class AnalyticsService:
         since = since or (until - timedelta(days=7))
 
         query = """
-        SELECT timestamp, value, status
-        FROM spc_measurements
-        WHERE equipment_id = $1 AND item_id = $2 AND timestamp BETWEEN $3 AND $4
-        ORDER BY timestamp DESC
+        SELECT time as timestamp, value, status, usl, lsl, target
+        FROM fdc_measurements
+        WHERE equipment_id = $1 AND param_id = $2 AND time BETWEEN $3 AND $4
+        ORDER BY time DESC
         LIMIT $5
         """
 
@@ -424,8 +424,8 @@ class AnalyticsService:
         start_time = start_time or (end_time - timedelta(days=7))
 
         query = """
-        SELECT value FROM spc_measurements
-        WHERE equipment_id = $1 AND item_id = $2 AND timestamp BETWEEN $3 AND $4
+        SELECT value FROM fdc_measurements
+        WHERE equipment_id = $1 AND param_id = $2 AND time BETWEEN $3 AND $4
         """
 
         try:
@@ -524,8 +524,8 @@ class AnalyticsService:
                avg(value) as mean,
                stddev(value) as std,
                count(*) as count
-        FROM spc_measurements
-        WHERE equipment_id = $1 AND item_id = $2 AND timestamp BETWEEN $3 AND $4
+        FROM fdc_measurements
+        WHERE equipment_id = $1 AND item_id = $2 AND time BETWEEN $3 AND $4
         GROUP BY bucket
         ORDER BY bucket
         """

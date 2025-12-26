@@ -1,0 +1,1 @@
+export { CriticalAlertModal } from './CriticalAlertModal';

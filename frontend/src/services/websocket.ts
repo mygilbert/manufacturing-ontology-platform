@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // WebSocket Service for Real-time Updates
 // ============================================================
 import type { WebSocketMessage } from '@/types';
@@ -15,7 +15,11 @@ class WebSocketService {
   private onConnectHandlers: Set<ConnectionHandler> = new Set();
   private onDisconnectHandlers: Set<ConnectionHandler> = new Set();
   private subscribedChannels: Set<string> = new Set();
-  private clientId: string | null = null;
+  private clientId: string;
+
+  constructor() {
+    this.clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
 
   connect(): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -23,7 +27,9 @@ class WebSocketService {
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/realtime/ws`;
+    const wsUrl = protocol + '//' + window.location.host + '/api/realtime/ws/' + this.clientId;
+
+    console.log('[WebSocket] Connecting to:', wsUrl);
 
     this.ws = new WebSocket(wsUrl);
 
@@ -107,7 +113,7 @@ class WebSocketService {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(
         JSON.stringify({
-          action: 'subscribe',
+          type: 'subscribe',
           channel,
         })
       );
@@ -118,7 +124,7 @@ class WebSocketService {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(
         JSON.stringify({
-          action: 'unsubscribe',
+          type: 'unsubscribe',
           channel,
         })
       );

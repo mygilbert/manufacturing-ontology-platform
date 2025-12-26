@@ -18,6 +18,9 @@ const SPCPage = lazy(() =>
 const AlertsPage = lazy(() =>
   import('@/pages/AlertsPage').then((module) => ({ default: module.AlertsPage }))
 );
+const TestPage = lazy(() =>
+  import('@/pages/TestPage').then((module) => ({ default: module.TestPage }))
+);
 
 // Loading fallback
 const PageLoader: React.FC = () => (
@@ -91,6 +94,14 @@ const App: React.FC = () => {
           element={
             <Suspense fallback={<PageLoader />}>
               <AlertsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/test"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <TestPage />
             </Suspense>
           }
         />

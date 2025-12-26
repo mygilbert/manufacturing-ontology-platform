@@ -83,7 +83,7 @@ export const NodeDetail: React.FC<NodeDetailProps> = ({ node, onClose, onExpand 
                 <div key={key} className="flex justify-between text-sm">
                   <span className="text-slate-400">{key}</span>
                   <span className="text-slate-200 font-medium truncate max-w-[60%]">
-                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                    {String(typeof value === 'object' && value !== null ? JSON.stringify(value) : (value ?? ''))}
                   </span>
                 </div>
               ))}
