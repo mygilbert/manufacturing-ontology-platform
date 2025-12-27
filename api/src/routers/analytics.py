@@ -414,3 +414,171 @@ async def get_equipment_status_summary():
 
     status = await analytics_service.get_equipment_status_summary()
     return status
+
+
+# ============================================================
+# 관계 발견 (Discovered Relationships) API
+# ============================================================
+
+class DiscoveredRelationship(BaseModel):
+    """발견된 관계"""
+    id: str
+    source: str
+    target: str
+    relation_type: str  # correlation, causality, pattern
+    method: str
+    confidence: float
+    properties: Dict[str, Any] = {}
+    discovered_at: datetime
+    verification_status: str = "pending"  # pending, verified, rejected
+
+
+class VerifyRequest(BaseModel):
+    """검증 요청"""
+    verified_by: str = "system"
+    notes: Optional[str] = None
+
+
+# 임시 인메모리 저장소 (실제로는 DB 사용)
+_discovered_relationships: List[Dict[str, Any]] = [
+    {
+        "id": "disc-001",
+        "source": "temperature",
+        "target": "pressure",
+        "relation_type": "correlation",
+        "method": "pearson",
+        "confidence": 0.87,
+        "properties": {"correlation": 0.87, "p_value": 0.001, "n_samples": 1000},
+        "discovered_at": datetime.now() - timedelta(hours=2),
+        "verification_status": "pending"
+    },
+    {
+        "id": "disc-002",
+        "source": "vibration",
+        "target": "equipment_failure",
+        "relation_type": "causality",
+        "method": "granger",
+        "confidence": 0.92,
+        "properties": {"statistic": 15.3, "p_value": 0.0001, "optimal_lag": 5},
+        "discovered_at": datetime.now() - timedelta(hours=1),
+        "verification_status": "pending"
+    },
+    {
+        "id": "disc-003",
+        "source": "flow_rate",
+        "target": "quality_defect",
+        "relation_type": "causality",
+        "method": "transfer_entropy",
+        "confidence": 0.78,
+        "properties": {"te_value": 0.45, "lag_seconds": 120},
+        "discovered_at": datetime.now() - timedelta(minutes=30),
+        "verification_status": "pending"
+    },
+    {
+        "id": "disc-004",
+        "source": "temperature_spike",
+        "target": "alarm_001",
+        "relation_type": "pattern",
+        "method": "sequential_pattern",
+        "confidence": 0.95,
+        "properties": {"support": 0.12, "lift": 3.5, "count": 45},
+        "discovered_at": datetime.now() - timedelta(minutes=15),
+        "verification_status": "pending"
+    },
+    {
+        "id": "disc-005",
+        "source": "humidity",
+        "target": "coating_thickness",
+        "relation_type": "correlation",
+        "method": "spearman",
+        "confidence": 0.65,
+        "properties": {"correlation": -0.65, "p_value": 0.02, "n_samples": 500},
+        "discovered_at": datetime.now() - timedelta(hours=3),
+        "verification_status": "verified"
+    }
+]
+
+
+@router.get("/discoveries")
+async def list_discoveries(
+    relation_type: Optional[str] = Query(None, description="관계 유형 (correlation, causality, pattern)"),
+    status: Optional[str] = Query(None, description="검증 상태 (pending, verified, rejected)"),
+    min_confidence: float = Query(0.0, ge=0.0, le=1.0, description="최소 신뢰도"),
+    limit: int = Query(100, ge=1, le=1000),
+):
+    """발견된 관계 목록 조회"""
+    results = _discovered_relationships.copy()
+
+    if relation_type:
+        results = [r for r in results if r["relation_type"] == relation_type]
+    if status:
+        results = [r for r in results if r["verification_status"] == status]
+    if min_confidence > 0:
+        results = [r for r in results if r["confidence"] >= min_confidence]
+
+    # 신뢰도 내림차순 정렬
+    results.sort(key=lambda x: x["confidence"], reverse=True)
+
+    return {"discoveries": results[:limit], "total": len(results)}
+
+
+@router.get("/discoveries/{discovery_id}")
+async def get_discovery(discovery_id: str = Path(..., description="발견 ID")):
+    """발견된 관계 상세 조회"""
+    for r in _discovered_relationships:
+        if r["id"] == discovery_id:
+            return r
+    raise HTTPException(status_code=404, detail=f"Discovery not found: {discovery_id}")
+
+
+@router.post("/discoveries/{discovery_id}/verify")
+async def verify_discovery(
+    discovery_id: str = Path(..., description="발견 ID"),
+    request: VerifyRequest = Body(...),
+):
+    """발견된 관계 검증 승인"""
+    for r in _discovered_relationships:
+        if r["id"] == discovery_id:
+            r["verification_status"] = "verified"
+            r["verified_by"] = request.verified_by
+            r["verified_at"] = datetime.now()
+            r["notes"] = request.notes
+            return {"success": True, "discovery": r}
+    raise HTTPException(status_code=404, detail=f"Discovery not found: {discovery_id}")
+
+
+@router.post("/discoveries/{discovery_id}/reject")
+async def reject_discovery(
+    discovery_id: str = Path(..., description="발견 ID"),
+    request: VerifyRequest = Body(...),
+):
+    """발견된 관계 검증 거부"""
+    for r in _discovered_relationships:
+        if r["id"] == discovery_id:
+            r["verification_status"] = "rejected"
+            r["verified_by"] = request.verified_by
+            r["verified_at"] = datetime.now()
+            r["notes"] = request.notes
+            return {"success": True, "discovery": r}
+    raise HTTPException(status_code=404, detail=f"Discovery not found: {discovery_id}")
+
+
+@router.post("/discoveries/{discovery_id}/add-to-ontology")
+async def add_discovery_to_ontology(
+    discovery_id: str = Path(..., description="발견 ID"),
+):
+    """발견된 관계를 온톨로지 그래프에 추가"""
+    for r in _discovered_relationships:
+        if r["id"] == discovery_id:
+            if r["verification_status"] != "verified":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Only verified relationships can be added to ontology"
+                )
+            # TODO: 실제로는 Apache AGE에 관계 추가
+            return {
+                "success": True,
+                "message": f"Relationship {discovery_id} added to ontology",
+                "discovery": r
+            }
+    raise HTTPException(status_code=404, detail=f"Discovery not found: {discovery_id}")

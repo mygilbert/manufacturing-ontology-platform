@@ -84,7 +84,7 @@ services:
   # Zookeeper (Kafka 의존성)
   # ============================================================
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: confluentinc/cp-zookeeper:7.4.0
     container_name: ontology-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -102,7 +102,7 @@ services:
   # Kafka (메시지 브로커)
   # ============================================================
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
+    image: confluentinc/cp-kafka:7.4.0
     container_name: ontology-kafka
     depends_on:
       - zookeeper
@@ -134,7 +134,7 @@ services:
   # Schema Registry (Avro 스키마 관리)
   # ============================================================
   schema-registry:
-    image: confluentinc/cp-schema-registry:7.5.0
+    image: confluentinc/cp-schema-registry:7.4.0
     container_name: ontology-schema-registry
     depends_on:
       - kafka

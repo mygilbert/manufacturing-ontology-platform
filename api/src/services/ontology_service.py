@@ -454,42 +454,44 @@ class OntologyService:
         to_id: str,
         max_depth: int = 5,
     ) -> Dict[str, Any]:
-        """두 노드 간 경로 탐색"""
+        """두 노드 간 경로 탐색 (BFS 방식으로 최단 경로 탐색)"""
         from_id_field = f"{from_type.lower()}_id"
         to_id_field = f"{to_type.lower()}_id"
 
-        query = f"""
-        SELECT * FROM cypher('{self.graph_name}', $$
-            MATCH p = shortestPath(
-                (a:{from_type} {{{from_id_field}: '{from_id}'}})-[*..{max_depth}]-(b:{to_type} {{{to_id_field}: '{to_id}'}})
-            )
-            RETURN p
-        $$) as (path agtype);
-        """
+        # AGE는 shortestPath를 지원하지 않으므로 깊이별로 탐색
+        for depth in range(1, max_depth + 1):
+            # 양방향 경로 탐색 (방향 무관)
+            query = f"""
+            SELECT * FROM cypher('{self.graph_name}', $$
+                MATCH p = (a:{from_type} {{{from_id_field}: '{from_id}'}})-[*{depth}]-(b:{to_type} {{{to_id_field}: '{to_id}'}})
+                RETURN p
+                LIMIT 1
+            $$) as (path agtype);
+            """
 
-        try:
-            async with self.pg_pool.acquire() as conn:
-                await conn.execute("LOAD 'age'")
-                await conn.execute("SET search_path = ag_catalog, '$user', public")
-                row = await conn.fetchrow(query)
+            try:
+                async with self.pg_pool.acquire() as conn:
+                    await conn.execute("LOAD 'age'")
+                    await conn.execute("SET search_path = ag_catalog, '$user', public")
+                    row = await conn.fetchrow(query)
 
-            if row:
-                path = self._parse_agtype(str(row['path']))
-                nodes = {}
-                edges = []
-                self._parse_path(path, nodes, edges)
-                return {
-                    "found": True,
-                    "nodes": list(nodes.values()),
-                    "edges": edges,
-                    "length": len(edges),
-                }
+                if row:
+                    path = self._parse_agtype(str(row['path']))
+                    nodes = {}
+                    edges = []
+                    self._parse_path(path, nodes, edges)
+                    return {
+                        "found": True,
+                        "nodes": list(nodes.values()),
+                        "edges": edges,
+                        "length": len(edges),
+                    }
 
-            return {"found": False, "nodes": [], "edges": [], "length": 0}
+            except Exception as e:
+                logger.error(f"Failed to find path at depth {depth}: {e}")
+                continue
 
-        except Exception as e:
-            logger.error(f"Failed to find path: {e}")
-            return {"found": False, "nodes": [], "edges": [], "length": 0}
+        return {"found": False, "nodes": [], "edges": [], "length": 0}
 
     async def get_neighbors(
         self,

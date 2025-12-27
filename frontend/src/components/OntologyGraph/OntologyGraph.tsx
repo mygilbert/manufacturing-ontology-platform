@@ -1,16 +1,23 @@
 // ============================================================
 // Ontology Graph Visualization with D3.js
 // ============================================================
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
 import type { GraphNode, GraphEdge, GraphData } from '@/types';
+import type { LayoutType } from './LayoutOptions';
 
 interface OntologyGraphProps {
   data: GraphData;
   width?: number;
   height?: number;
+  layout?: LayoutType;
+  highlightedPath?: string[];
+  selectedNodeId?: string | null;
+  visibleNodeTypes?: Set<string>;
+  visibleRelationTypes?: Set<string>;
   onNodeClick?: (node: GraphNode) => void;
   onNodeDoubleClick?: (node: GraphNode) => void;
+  onBackgroundClick?: () => void;
 }
 
 // Node type color mapping
@@ -36,12 +43,32 @@ const NODE_ICONS: Record<string, string> = {
   Alarm: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
 };
 
+// Edge strength color mapping
+const getEdgeColor = (strength?: number): string => {
+  if (strength === undefined) return '#475569';
+  if (strength >= 0.8) return '#10b981'; // Green - strong
+  if (strength >= 0.6) return '#f59e0b'; // Amber - medium
+  if (strength >= 0.4) return '#6b7280'; // Gray - weak
+  return '#374151'; // Dark gray - very weak
+};
+
+const getEdgeWidth = (strength?: number): number => {
+  if (strength === undefined) return 2;
+  return 1 + strength * 4; // 1-5 range
+};
+
 export const OntologyGraph: React.FC<OntologyGraphProps> = ({
   data,
   width = 1000,
   height = 700,
+  layout = 'force',
+  highlightedPath = [],
+  selectedNodeId = null,
+  visibleNodeTypes,
+  visibleRelationTypes,
   onNodeClick,
   onNodeDoubleClick,
+  onBackgroundClick,
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,6 +80,54 @@ export const OntologyGraph: React.FC<OntologyGraphProps> = ({
   }>({ visible: false, x: 0, y: 0, content: null });
 
   const [dimensions, setDimensions] = useState({ width, height });
+
+  // Filter data based on visible types
+  const filteredData = useMemo(() => {
+    let nodes = data.nodes;
+    let edges = data.edges;
+
+    if (visibleNodeTypes && visibleNodeTypes.size > 0) {
+      nodes = nodes.filter((n) => visibleNodeTypes.has(n.type));
+      const nodeIds = new Set(nodes.map((n) => n.id));
+      edges = edges.filter((e) => {
+        const sourceId = typeof e.source === 'string' ? e.source : e.source.id;
+        const targetId = typeof e.target === 'string' ? e.target : e.target.id;
+        return nodeIds.has(sourceId) && nodeIds.has(targetId);
+      });
+    }
+
+    if (visibleRelationTypes && visibleRelationTypes.size > 0) {
+      edges = edges.filter((e) => visibleRelationTypes.has(e.label));
+    }
+
+    return { nodes, edges };
+  }, [data, visibleNodeTypes, visibleRelationTypes]);
+
+  // Highlighted path set for fast lookup
+  const highlightedSet = useMemo(() => new Set(highlightedPath), [highlightedPath]);
+
+  // Find connected nodes and edges for selected node
+  const { connectedNodes, connectedEdges } = useMemo(() => {
+    if (!selectedNodeId) {
+      return { connectedNodes: new Set<string>(), connectedEdges: new Set<string>() };
+    }
+
+    const nodes = new Set<string>([selectedNodeId]);
+    const edges = new Set<string>();
+
+    filteredData.edges.forEach((edge) => {
+      const sourceId = typeof edge.source === 'string' ? edge.source : edge.source.id;
+      const targetId = typeof edge.target === 'string' ? edge.target : edge.target.id;
+
+      if (sourceId === selectedNodeId || targetId === selectedNodeId) {
+        edges.add(edge.id);
+        nodes.add(sourceId);
+        nodes.add(targetId);
+      }
+    });
+
+    return { connectedNodes: nodes, connectedEdges: edges };
+  }, [selectedNodeId, filteredData.edges]);
 
   // Handle resize
   useEffect(() => {
@@ -71,7 +146,7 @@ export const OntologyGraph: React.FC<OntologyGraphProps> = ({
 
   // Main D3 rendering
   useEffect(() => {
-    if (!svgRef.current || !data.nodes.length) return;
+    if (!svgRef.current || !filteredData.nodes.length) return;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
@@ -87,11 +162,22 @@ export const OntologyGraph: React.FC<OntologyGraphProps> = ({
 
     svg.call(zoom);
 
+    // Background click to deselect
+    svg.on('click', (event) => {
+      // Only trigger if clicking on the SVG background itself
+      if (event.target === svgRef.current) {
+        onBackgroundClick?.();
+      }
+    });
+
     // Main container for zoom
     const container = svg.append('g');
 
+    // Defs for markers and gradients
+    const defs = svg.append('defs');
+
     // Arrow marker for edges
-    svg.append('defs').append('marker')
+    defs.append('marker')
       .attr('id', 'arrowhead')
       .attr('viewBox', '-0 -5 10 10')
       .attr('refX', 25)
@@ -103,22 +189,131 @@ export const OntologyGraph: React.FC<OntologyGraphProps> = ({
       .attr('d', 'M 0,-5 L 10,0 L 0,5')
       .attr('fill', '#64748b');
 
+    // Highlighted arrow marker
+    defs.append('marker')
+      .attr('id', 'arrowhead-highlighted')
+      .attr('viewBox', '-0 -5 10 10')
+      .attr('refX', 25)
+      .attr('refY', 0)
+      .attr('orient', 'auto')
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .append('path')
+      .attr('d', 'M 0,-5 L 10,0 L 0,5')
+      .attr('fill', '#3b82f6');
+
+    // Glow filter for highlighted nodes
+    const filter = defs.append('filter')
+      .attr('id', 'glow')
+      .attr('x', '-50%')
+      .attr('y', '-50%')
+      .attr('width', '200%')
+      .attr('height', '200%');
+
+    filter.append('feGaussianBlur')
+      .attr('stdDeviation', '3')
+      .attr('result', 'coloredBlur');
+
+    const feMerge = filter.append('feMerge');
+    feMerge.append('feMergeNode').attr('in', 'coloredBlur');
+    feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+
     // Prepare links with source/target as objects
-    const links = data.edges.map((edge) => ({
+    const links = filteredData.edges.map((edge) => ({
       ...edge,
       source: typeof edge.source === 'string' ? edge.source : edge.source.id,
       target: typeof edge.target === 'string' ? edge.target : edge.target.id,
     }));
 
-    // Create force simulation
-    const simulation = d3.forceSimulation(data.nodes as d3.SimulationNodeDatum[])
-      .force('link', d3.forceLink(links)
-        .id((d: any) => d.id)
-        .distance(150)
-        .strength(0.5))
-      .force('charge', d3.forceManyBody().strength(-400))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(50));
+    // Apply layout
+    let simulation: d3.Simulation<d3.SimulationNodeDatum, undefined>;
+
+    if (layout === 'force') {
+      // Clear any fixed positions from other layouts
+      filteredData.nodes.forEach((node) => {
+        node.fx = null;
+        node.fy = null;
+      });
+
+      simulation = d3.forceSimulation(filteredData.nodes as d3.SimulationNodeDatum[])
+        .force('link', d3.forceLink(links)
+          .id((d: any) => d.id)
+          .distance(150)
+          .strength(0.5))
+        .force('charge', d3.forceManyBody().strength(-400))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(50))
+        .alpha(1) // Force restart with full energy
+        .alphaDecay(0.02); // Slower decay for smoother animation
+    } else if (layout === 'hierarchical') {
+      // Group nodes by type for hierarchical layout
+      const typeGroups = new Map<string, GraphNode[]>();
+      filteredData.nodes.forEach((node) => {
+        if (!typeGroups.has(node.type)) {
+          typeGroups.set(node.type, []);
+        }
+        typeGroups.get(node.type)!.push(node);
+      });
+
+      const types = Array.from(typeGroups.keys());
+      const layerHeight = height / (types.length + 1);
+
+      types.forEach((type, layerIndex) => {
+        const nodesInLayer = typeGroups.get(type)!;
+        const layerWidth = width / (nodesInLayer.length + 1);
+        nodesInLayer.forEach((node, nodeIndex) => {
+          node.x = layerWidth * (nodeIndex + 1);
+          node.y = layerHeight * (layerIndex + 1);
+          node.fx = node.x;
+          node.fy = node.y;
+        });
+      });
+
+      simulation = d3.forceSimulation(filteredData.nodes as d3.SimulationNodeDatum[])
+        .force('link', d3.forceLink(links).id((d: any) => d.id).distance(100));
+    } else if (layout === 'radial') {
+      // Radial layout
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const radius = Math.min(width, height) / 3;
+
+      filteredData.nodes.forEach((node, i) => {
+        const angle = (2 * Math.PI * i) / filteredData.nodes.length;
+        node.x = centerX + radius * Math.cos(angle);
+        node.y = centerY + radius * Math.sin(angle);
+      });
+
+      simulation = d3.forceSimulation(filteredData.nodes as d3.SimulationNodeDatum[])
+        .force('link', d3.forceLink(links).id((d: any) => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-100))
+        .force('collision', d3.forceCollide().radius(40));
+    } else {
+      // Grid layout
+      const cols = Math.ceil(Math.sqrt(filteredData.nodes.length));
+      const cellWidth = width / (cols + 1);
+      const cellHeight = height / (Math.ceil(filteredData.nodes.length / cols) + 1);
+
+      filteredData.nodes.forEach((node, i) => {
+        node.x = cellWidth * ((i % cols) + 1);
+        node.y = cellHeight * (Math.floor(i / cols) + 1);
+      });
+
+      simulation = d3.forceSimulation(filteredData.nodes as d3.SimulationNodeDatum[])
+        .force('link', d3.forceLink(links).id((d: any) => d.id));
+    }
+
+    // Selected node edge marker (cyan/teal color)
+    defs.append('marker')
+      .attr('id', 'arrowhead-selected')
+      .attr('viewBox', '-0 -5 10 10')
+      .attr('refX', 25)
+      .attr('refY', 0)
+      .attr('orient', 'auto')
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .append('path')
+      .attr('d', 'M 0,-5 L 10,0 L 0,5')
+      .attr('fill', '#06b6d4'); // Cyan
 
     // Draw links
     const link = container.append('g')
@@ -128,9 +323,56 @@ export const OntologyGraph: React.FC<OntologyGraphProps> = ({
       .enter()
       .append('line')
       .attr('class', 'graph-link')
-      .attr('stroke', '#475569')
-      .attr('stroke-width', 2)
-      .attr('marker-end', 'url(#arrowhead)');
+      .attr('stroke', (d: any) => {
+        const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+        const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+
+        // Selected node connections - cyan color
+        if (connectedEdges.has(d.id)) {
+          return '#06b6d4'; // Cyan
+        }
+        // Path highlighting - blue color
+        if (highlightedSet.has(sourceId) && highlightedSet.has(targetId)) {
+          return '#3b82f6';
+        }
+        const strength = d.properties?.confidence || d.properties?.strength;
+        return getEdgeColor(strength as number);
+      })
+      .attr('stroke-width', (d: any) => {
+        const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+        const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+
+        // Selected node connections - thicker
+        if (connectedEdges.has(d.id)) {
+          return 4;
+        }
+        if (highlightedSet.has(sourceId) && highlightedSet.has(targetId)) {
+          return 4;
+        }
+        const strength = d.properties?.confidence || d.properties?.strength;
+        return getEdgeWidth(strength as number);
+      })
+      .attr('stroke-opacity', (d: any) => {
+        // If a node is selected, dim non-connected edges
+        if (selectedNodeId) {
+          return connectedEdges.has(d.id) ? 1 : 0.15;
+        }
+        if (highlightedSet.size === 0) return 1;
+        const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+        const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+        return (highlightedSet.has(sourceId) && highlightedSet.has(targetId)) ? 1 : 0.3;
+      })
+      .attr('marker-end', (d: any) => {
+        const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+        const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+
+        if (connectedEdges.has(d.id)) {
+          return 'url(#arrowhead-selected)';
+        }
+        return (highlightedSet.has(sourceId) && highlightedSet.has(targetId))
+          ? 'url(#arrowhead-highlighted)'
+          : 'url(#arrowhead)';
+      });
 
     // Draw link labels
     const linkLabel = container.append('g')
@@ -149,11 +391,20 @@ export const OntologyGraph: React.FC<OntologyGraphProps> = ({
     const node = container.append('g')
       .attr('class', 'nodes')
       .selectAll('g')
-      .data(data.nodes)
+      .data(filteredData.nodes)
       .enter()
       .append('g')
       .attr('class', 'node')
       .style('cursor', 'pointer')
+      .style('opacity', (d) => {
+        // Selected node highlighting
+        if (selectedNodeId) {
+          return connectedNodes.has(d.id) ? 1 : 0.2;
+        }
+        // Path highlighting
+        if (highlightedSet.size === 0) return 1;
+        return highlightedSet.has(d.id) ? 1 : 0.3;
+      })
       .call(d3.drag<SVGGElement, GraphNode>()
         .on('start', (event, d) => {
           if (!event.active) simulation.alphaTarget(0.3).restart();
@@ -166,16 +417,35 @@ export const OntologyGraph: React.FC<OntologyGraphProps> = ({
         })
         .on('end', (event, d) => {
           if (!event.active) simulation.alphaTarget(0);
-          d.fx = null;
-          d.fy = null;
+          if (layout === 'force') {
+            d.fx = null;
+            d.fy = null;
+          }
         }) as any);
 
     // Node circles
     node.append('circle')
-      .attr('r', 30)
+      .attr('r', (d) => {
+        if (d.id === selectedNodeId) return 38;
+        if (highlightedSet.has(d.id) || connectedNodes.has(d.id)) return 35;
+        return 30;
+      })
       .attr('fill', (d) => NODE_COLORS[d.type] || NODE_COLORS.default)
-      .attr('stroke', '#1e293b')
-      .attr('stroke-width', 3)
+      .attr('stroke', (d) => {
+        if (d.id === selectedNodeId) return '#06b6d4'; // Cyan for selected
+        if (connectedNodes.has(d.id) && d.id !== selectedNodeId) return '#22d3ee'; // Light cyan for connected
+        if (highlightedSet.has(d.id)) return '#3b82f6';
+        return '#1e293b';
+      })
+      .attr('stroke-width', (d) => {
+        if (d.id === selectedNodeId) return 5;
+        if (connectedNodes.has(d.id) || highlightedSet.has(d.id)) return 4;
+        return 3;
+      })
+      .attr('filter', (d) => {
+        if (d.id === selectedNodeId || highlightedSet.has(d.id)) return 'url(#glow)';
+        return null;
+      })
       .on('mouseover', function (event, d) {
         d3.select(this)
           .transition()
@@ -249,7 +519,7 @@ export const OntologyGraph: React.FC<OntologyGraphProps> = ({
     return () => {
       simulation.stop();
     };
-  }, [data, dimensions, onNodeClick, onNodeDoubleClick]);
+  }, [filteredData, dimensions, layout, highlightedSet, selectedNodeId, connectedNodes, connectedEdges, onNodeClick, onNodeDoubleClick, onBackgroundClick]);
 
   return (
     <div ref={containerRef} className="relative w-full h-full min-h-[500px]">
