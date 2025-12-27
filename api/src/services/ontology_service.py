@@ -643,37 +643,48 @@ class OntologyService:
             return s
 
     def _parse_vertex(self, vertex: Any) -> Dict[str, Any]:
-        """AGE vertex 파싱"""
+        """AGE vertex 파싱 - 프론트엔드 D3.js 형식에 맞게 변환"""
         if isinstance(vertex, str):
             vertex = self._parse_agtype(vertex)
 
         if isinstance(vertex, dict):
             props = vertex.get('properties', {})
-            result = {
-                "id": vertex.get('id'),
-                "label": vertex.get('label'),
-            }
-            result.update(props)
+            node_type = vertex.get('label')  # Equipment, Lot, Wafer, Alarm 등
 
-            # 필드명 매핑 (그래프 DB 필드 -> API 필드)
-            if 'type' in result and 'equipment_type' not in result:
-                result['equipment_type'] = result['type']
+            # 노드 타입에 따른 표시 이름 결정
+            display_name = (
+                props.get('name') or
+                props.get('equipment_id') or
+                props.get('lot_id') or
+                props.get('wafer_id') or
+                props.get('alarm_name') or
+                props.get('alarm_id') or
+                props.get('recipe_id') or
+                str(vertex.get('id'))
+            )
+
+            result = {
+                "id": str(vertex.get('id')),  # 문자열로 변환 (D3.js 호환)
+                "type": node_type,  # 프론트엔드가 기대하는 필드
+                "label": display_name,  # 표시용 이름
+                "properties": props,  # 원본 속성
+            }
 
             return result
         return {}
 
     def _parse_edge(self, edge: Any) -> Dict[str, Any]:
-        """AGE edge 파싱"""
+        """AGE edge 파싱 - 프론트엔드 D3.js 형식에 맞게 변환"""
         if isinstance(edge, str):
             edge = self._parse_agtype(edge)
 
         if isinstance(edge, dict):
             props = edge.get('properties', {})
             result = {
-                "id": edge.get('id'),
+                "id": str(edge.get('id')),  # 문자열로 변환
                 "label": edge.get('label'),
-                "start_id": edge.get('start_id'),
-                "end_id": edge.get('end_id'),
+                "source": str(edge.get('start_id')),  # D3.js는 source 사용
+                "target": str(edge.get('end_id')),    # D3.js는 target 사용
             }
             result.update(props)
             return result
