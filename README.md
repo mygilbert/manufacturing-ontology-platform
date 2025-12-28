@@ -281,6 +281,43 @@ SELECT * FROM cypher('manufacturing', $$
 $$) as (root_cause agtype, alarm agtype, description agtype);
 ```
 
+## 온톨로지 그래프 시각화
+
+### 주요 기능
+
+| 기능 | 설명 |
+|------|------|
+| **레이아웃 전환** | Force, Hierarchical, Radial, Grid 레이아웃 지원 |
+| **노드 필터링** | 타입별 노드/관계 표시/숨김 |
+| **경로 탐색** | 두 노드 간 최단 경로 시각화 (BFS) |
+| **노드 선택 강조** | 클릭 시 연결된 엣지 청록색 하이라이트 |
+| **Discoveries 패널** | 발견된 관계 검증/거부 워크플로우 |
+
+### 접속 URL
+
+| 서비스 | URL |
+|--------|-----|
+| Frontend | http://localhost:3000 |
+| API Docs | http://localhost:8000/docs |
+| Kafka UI | http://localhost:8080 |
+
+### API 엔드포인트
+
+```
+# 온톨로지
+GET  /api/ontology/graph/traverse  - 그래프 탐색
+GET  /api/ontology/graph/path      - 경로 탐색
+
+# 발견된 관계
+GET  /api/analytics/discoveries              - 목록 조회
+POST /api/analytics/discoveries/{id}/verify  - 검증 승인
+POST /api/analytics/discoveries/{id}/reject  - 검증 거부
+
+# SPC/이상감지
+GET  /api/analytics/anomalies        - 이상 감지 결과
+GET  /api/analytics/spc/control-chart - SPC 관리도
+```
+
 ## 향후 계획
 
 1. **Phase 1 (PoC)**: 샘플 데이터로 관계 발견 검증 ✅
