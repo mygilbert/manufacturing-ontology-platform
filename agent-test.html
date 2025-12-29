@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FDC Agent Test</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #00d4ff; margin-bottom: 5px; }
+        .subtitle { color: #888; margin-bottom: 20px; }
+        .input-section {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 80px;
+            padding: 12px;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+            background: #0f3460;
+            color: #fff;
+            font-size: 16px;
+            resize: vertical;
+        }
+        textarea:focus { border-color: #00d4ff; outline: none; }
+        .btn-row { margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #00d4ff; color: #000; }
+        .btn-primary:hover { background: #00a8cc; }
+        .btn-secondary { background: #0f3460; color: #fff; }
+        .btn-secondary:hover { background: #1a4a7a; }
+        .examples { margin-top: 15px; }
+        .example-btn {
+            background: #e94560;
+            color: #fff;
+            margin: 3px;
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+        .example-btn:hover { background: #c73e54; }
+        .result-section {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            min-height: 200px;
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .status { padding: 5px 12px; border-radius: 20px; font-size: 12px; }
+        .status.ready { background: #00d4ff33; color: #00d4ff; }
+        .status.loading { background: #ffc10733; color: #ffc107; }
+        .status.success { background: #4caf5033; color: #4caf50; }
+        .status.error { background: #f4433633; color: #f44336; }
+        #result {
+            background: #0f3460;
+            padding: 15px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .time { color: #888; font-size: 13px; margin-top: 10px; }
+        .model-info {
+            background: #0f3460;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .model-badge {
+            background: #e94560;
+            padding: 5px 12px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>FDC Analysis Agent</h1>
+    <p class="subtitle">EXAONE 3.5 기반 설비 이상 분석 시스템</p>
+
+    <div class="model-info">
+        <span class="model-badge">EXAONE 3.5:7.8b</span>
+        <span>LG AI Research 한국어 특화 모델</span>
+        <span id="agentStatus" class="status ready">Checking...</span>
+    </div>
+
+    <div class="input-section">
+        <textarea id="query" placeholder="질문을 입력하세요...&#10;예: ETCH-001 진동 급증. 원인과 조치?"></textarea>
+        <div class="btn-row">
+            <button class="btn-primary" onclick="analyze()">분석 요청</button>
+            <button class="btn-secondary" onclick="clearAll()">초기화</button>
+        </div>
+        <div class="examples">
+            <strong>예시 질문:</strong><br>
+            <button class="example-btn" onclick="setQuery('ETCH-001 온도 알람 발생. 원인은?')">온도 알람</button>
+            <button class="example-btn" onclick="setQuery('ETCH-001 진동 급증. 원인과 조치?')">진동 급증</button>
+            <button class="example-btn" onclick="setQuery('CVD-002 압력 이상. 점검 순서는?')">압력 이상</button>
+            <button class="example-btn" onclick="setQuery('설비 예방정비 체크리스트 알려줘')">예방정비</button>
+        </div>
+    </div>
+
+    <div class="result-section">
+        <div class="result-header">
+            <h3>분석 결과</h3>
+            <span id="resultStatus" class="status ready">대기중</span>
+        </div>
+        <div id="result">분석 요청을 기다리는 중...</div>
+        <div id="timeInfo" class="time"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8001';
+
+        async function checkStatus() {
+            try {
+                const res = await fetch(`${API_URL}/api/agent/status`);
+                const data = await res.json();
+                document.getElementById('agentStatus').textContent = data.available ? 'Connected' : 'Disconnected';
+                document.getElementById('agentStatus').className = 'status ' + (data.available ? 'success' : 'error');
+            } catch (e) {
+                document.getElementById('agentStatus').textContent = 'Offline';
+                document.getElementById('agentStatus').className = 'status error';
+            }
+        }
+
+        function setQuery(text) {
+            document.getElementById('query').value = text;
+        }
+
+        function clearAll() {
+            document.getElementById('query').value = '';
+            document.getElementById('result').textContent = '분석 요청을 기다리는 중...';
+            document.getElementById('resultStatus').textContent = '대기중';
+            document.getElementById('resultStatus').className = 'status ready';
+            document.getElementById('timeInfo').textContent = '';
+        }
+
+        async function analyze() {
+            const query = document.getElementById('query').value.trim();
+            if (!query) {
+                alert('질문을 입력해주세요.');
+                return;
+            }
+
+            document.getElementById('result').textContent = '분석 중... (30초 정도 소요됩니다)';
+            document.getElementById('resultStatus').textContent = '분석중';
+            document.getElementById('resultStatus').className = 'status loading';
+            document.getElementById('timeInfo').textContent = '';
+
+            const startTime = Date.now();
+
+            try {
+                const res = await fetch(`${API_URL}/api/agent/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query })
+                });
+
+                const data = await res.json();
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+                if (data.success) {
+                    document.getElementById('result').textContent = data.answer;
+                    document.getElementById('resultStatus').textContent = '완료';
+                    document.getElementById('resultStatus').className = 'status success';
+                } else {
+                    document.getElementById('result').textContent = '오류: ' + (data.error || '알 수 없는 오류');
+                    document.getElementById('resultStatus').textContent = '오류';
+                    document.getElementById('resultStatus').className = 'status error';
+                }
+
+                document.getElementById('timeInfo').textContent = `응답 시간: ${elapsed}초 (서버: ${(data.execution_time_ms/1000).toFixed(1)}초)`;
+
+            } catch (e) {
+                document.getElementById('result').textContent = '서버 연결 실패: ' + e.message;
+                document.getElementById('resultStatus').textContent = '오류';
+                document.getElementById('resultStatus').className = 'status error';
+            }
+        }
+
+        // Enter 키로 전송
+        document.getElementById('query').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                analyze();
+            }
+        });
+
+        // 초기 상태 체크
+        checkStatus();
+        setInterval(checkStatus, 10000);
+    </script>
+</body>
+</html>

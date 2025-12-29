@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import settings
-from routers import ontology, analytics, realtime
+from routers import ontology, analytics, realtime, agent
 
 # 로깅 설정
 logging.basicConfig(
@@ -63,6 +63,7 @@ Manufacturing Ontology Platform API
 * **이상 감지** - Isolation Forest, Autoencoder 기반 이상 탐지
 * **예측 분석** - 설비 고장 예측, 품질 예측
 * **GraphQL** - 유연한 온톨로지 쿼리
+* **AI Agent** - Ollama LLM 기반 FDC 분석 Agent (근본원인 분석, 알람 점검)
 """,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -83,6 +84,7 @@ app.add_middleware(
 app.include_router(ontology.router, prefix="/api/ontology", tags=["Ontology"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
 app.include_router(realtime.router, prefix="/api/realtime", tags=["Real-time"])
+app.include_router(agent.router, prefix="/api/agent", tags=["AI Agent"])
 
 
 # 헬스체크
