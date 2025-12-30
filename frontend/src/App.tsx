@@ -21,6 +21,9 @@ const AlertsPage = lazy(() =>
 const TestPage = lazy(() =>
   import('@/pages/TestPage').then((module) => ({ default: module.TestPage }))
 );
+const AgentPage = lazy(() =>
+  import('@/pages/AgentPage').then((module) => ({ default: module.AgentPage }))
+);
 
 // Loading fallback
 const PageLoader: React.FC = () => (
@@ -102,6 +105,14 @@ const App: React.FC = () => {
           element={
             <Suspense fallback={<PageLoader />}>
               <TestPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/agent"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <AgentPage />
             </Suspense>
           }
         />
