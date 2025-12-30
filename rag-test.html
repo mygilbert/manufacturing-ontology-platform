@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>RAG Panel Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">RAG Knowledge System Test</h1>
+
+        <!-- Status -->
+        <div id="status" class="mb-6 p-4 bg-slate-800 rounded-lg">
+            <p class="text-slate-400">Checking status...</p>
+        </div>
+
+        <!-- RAG Stats -->
+        <div id="rag-stats" class="mb-6 p-4 bg-slate-800 rounded-lg">
+            <h2 class="text-lg font-semibold mb-3">Knowledge Base Stats</h2>
+            <div id="stats-content">Loading...</div>
+        </div>
+
+        <!-- Search -->
+        <div class="mb-6 p-4 bg-slate-800 rounded-lg">
+            <h2 class="text-lg font-semibold mb-3">RAG Search Test</h2>
+            <div class="flex gap-3">
+                <input type="text" id="query" value="temperature alarm cause"
+                    class="flex-1 px-4 py-2 bg-slate-700 rounded-lg text-white" placeholder="Enter search query">
+                <button onclick="searchRAG()" class="px-6 py-2 bg-blue-600 rounded-lg hover:bg-blue-500">Search</button>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="results" class="space-y-4">
+            <!-- Results will be inserted here -->
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8010';
+
+        const DOC_TYPE_LABELS = {
+            domain_knowledge: '도메인 지식',
+            causal_relationship: '인과관계',
+            alarm_cause: '알람 원인',
+            leading_indicator: '선행 지표',
+            impossible_relationship: '불가능 관계',
+            discovered_relationship: '발견된 관계',
+            discovery_summary: '발견 요약'
+        };
+
+        const DOC_TYPE_COLORS = {
+            domain_knowledge: 'bg-blue-500/20 text-blue-400',
+            causal_relationship: 'bg-purple-500/20 text-purple-400',
+            alarm_cause: 'bg-red-500/20 text-red-400',
+            leading_indicator: 'bg-amber-500/20 text-amber-400',
+            impossible_relationship: 'bg-slate-500/20 text-slate-400',
+            discovered_relationship: 'bg-emerald-500/20 text-emerald-400',
+            discovery_summary: 'bg-cyan-500/20 text-cyan-400'
+        };
+
+        async function checkStatus() {
+            try {
+                const [agentRes, ragRes] = await Promise.all([
+                    fetch(`${API_URL}/api/agent/status`),
+                    fetch(`${API_URL}/api/agent/rag/status`)
+                ]);
+                const agent = await agentRes.json();
+                const rag = await ragRes.json();
+
+                document.getElementById('status').innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full ${agent.available ? 'bg-emerald-500' : 'bg-red-500'}"></div>
+                            <span>Agent: ${agent.available ? 'Connected' : 'Disconnected'}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full ${rag.available ? 'bg-emerald-500' : 'bg-red-500'}"></div>
+                            <span>RAG: ${rag.available ? 'Available' : 'Unavailable'}</span>
+                        </div>
+                    </div>
+                `;
+
+                if (rag.stats) {
+                    const stats = rag.stats;
+                    let badges = Object.entries(stats.documents_by_type).map(([type, count]) =>
+                        `<span class="px-2 py-1 rounded ${DOC_TYPE_COLORS[type] || 'bg-slate-500/20 text-slate-400'}">${DOC_TYPE_LABELS[type] || type}: ${count}</span>`
+                    ).join('');
+
+                    document.getElementById('stats-content').innerHTML = `
+                        <p class="text-emerald-400 text-xl font-bold mb-3">${stats.total_documents} documents indexed</p>
+                        <div class="flex flex-wrap gap-2">${badges}</div>
+                    `;
+                }
+            } catch (e) {
+                document.getElementById('status').innerHTML = `<p class="text-red-400">Error: ${e.message}</p>`;
+            }
+        }
+
+        async function searchRAG() {
+            const query = document.getElementById('query').value;
+            document.getElementById('results').innerHTML = '<p class="text-slate-400">Searching...</p>';
+
+            try {
+                const res = await fetch(`${API_URL}/api/agent/rag/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, n_results: 5 })
+                });
+                const data = await res.json();
+
+                let html = `<h3 class="text-lg font-semibold mb-3">Found ${data.n_results} results for "${query}"</h3>`;
+
+                data.sources.forEach((source, i) => {
+                    html += `
+                        <div class="p-4 bg-slate-800 rounded-lg border border-slate-700">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="px-2 py-1 rounded text-sm ${DOC_TYPE_COLORS[source.doc_type] || 'bg-slate-500/20 text-slate-400'}">
+                                    ${DOC_TYPE_LABELS[source.doc_type] || source.doc_type}
+                                </span>
+                                <span class="text-emerald-400 font-bold">${Math.round(source.similarity * 100)}%</span>
+                            </div>
+                            <p class="text-slate-300 text-sm whitespace-pre-line">${source.preview}</p>
+                            <p class="text-xs text-slate-500 mt-2">ID: ${source.id}</p>
+                        </div>
+                    `;
+                });
+
+                document.getElementById('results').innerHTML = html;
+            } catch (e) {
+                document.getElementById('results').innerHTML = `<p class="text-red-400">Error: ${e.message}</p>`;
+            }
+        }
+
+        // Initialize
+        checkStatus();
+    </script>
+</body>
+</html>
