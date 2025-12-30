@@ -280,7 +280,7 @@ class TimeSeriesAnalysisTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "timeseries_analysis"
+        return "time_series_analysis"
 
     @property
     def description(self) -> str:
@@ -626,6 +626,232 @@ class AlarmHistoryTool(BaseTool):
         )
 
 
+class PatternMiningTool(BaseTool):
+    """패턴 마이닝 도구"""
+
+    def __init__(self):
+        # 발견된 패턴 데이터 (샘플)
+        self.patterns = {
+            "TEMP_HIGH": {
+                "co_occurs": ["PRESSURE_HIGH", "RF_ADJUST", "COOLANT_LOW"],
+                "precedes": ["PARTICLE_ALARM", "ETCH_RATE_OOS"],
+                "follows": ["RF_POWER_SPIKE", "FLOW_DROP"],
+                "confidence": {
+                    "PRESSURE_HIGH": 0.85,
+                    "RF_ADJUST": 0.72,
+                    "COOLANT_LOW": 0.91,
+                    "PARTICLE_ALARM": 0.68,
+                    "ETCH_RATE_OOS": 0.79,
+                    "RF_POWER_SPIKE": 0.88,
+                    "FLOW_DROP": 0.76
+                }
+            },
+            "PRESSURE_HIGH": {
+                "co_occurs": ["TEMP_HIGH", "VACUUM_FAULT"],
+                "precedes": ["ETCH_RATE_OOS"],
+                "follows": ["GAS_FLOW_CHANGE"],
+                "confidence": {
+                    "TEMP_HIGH": 0.85,
+                    "VACUUM_FAULT": 0.67,
+                    "ETCH_RATE_OOS": 0.82,
+                    "GAS_FLOW_CHANGE": 0.74
+                }
+            },
+            "ALARM_TRIGGER": {
+                "co_occurs": ["TEMP_HIGH", "PRESSURE_HIGH", "RF_ADJUST"],
+                "precedes": ["EQUIPMENT_STOP", "MAINTENANCE_REQUEST"],
+                "follows": ["PARAMETER_DRIFT", "SENSOR_ANOMALY"],
+                "confidence": {
+                    "TEMP_HIGH": 0.97,
+                    "PRESSURE_HIGH": 1.00,
+                    "RF_ADJUST": 0.89,
+                    "EQUIPMENT_STOP": 0.65,
+                    "MAINTENANCE_REQUEST": 0.58,
+                    "PARAMETER_DRIFT": 0.92,
+                    "SENSOR_ANOMALY": 0.71
+                }
+            },
+            "ETCH_RATE_OOS": {
+                "co_occurs": ["PRESSURE_HIGH", "RF_ADJUST", "TEMP_DRIFT"],
+                "precedes": ["QUALITY_FAIL", "REWORK"],
+                "follows": ["GAS_COMPOSITION_CHANGE", "CHAMBER_CONDITION"],
+                "confidence": {
+                    "PRESSURE_HIGH": 0.92,
+                    "RF_ADJUST": 0.97,
+                    "TEMP_DRIFT": 0.84,
+                    "QUALITY_FAIL": 0.78,
+                    "REWORK": 0.45,
+                    "GAS_COMPOSITION_CHANGE": 0.86,
+                    "CHAMBER_CONDITION": 0.69
+                }
+            }
+        }
+
+        # 시퀀스 패턴
+        self.sequence_patterns = [
+            {
+                "sequence": ["RF_POWER_SPIKE", "TEMP_HIGH", "PRESSURE_HIGH"],
+                "support": 0.15,
+                "confidence": 0.89,
+                "avg_interval_sec": 30
+            },
+            {
+                "sequence": ["FLOW_DROP", "TEMP_HIGH", "PARTICLE_ALARM"],
+                "support": 0.12,
+                "confidence": 0.76,
+                "avg_interval_sec": 45
+            },
+            {
+                "sequence": ["GAS_FLOW_CHANGE", "PRESSURE_HIGH", "ETCH_RATE_OOS"],
+                "support": 0.18,
+                "confidence": 0.82,
+                "avg_interval_sec": 60
+            }
+        ]
+
+    @property
+    def name(self) -> str:
+        return "pattern_mining"
+
+    @property
+    def description(self) -> str:
+        return "알람 및 이벤트 간의 동시 발생, 선후 관계 패턴을 분석합니다."
+
+    def _get_parameters(self) -> Dict:
+        return {
+            "event_id": {
+                "type": "string",
+                "description": "분석할 이벤트/알람 ID (예: TEMP_HIGH, ALARM_TRIGGER)"
+            },
+            "pattern_type": {
+                "type": "string",
+                "enum": ["co_occurrence", "sequence", "all"],
+                "description": "패턴 유형 (동시발생, 시퀀스, 전체)"
+            },
+            "min_confidence": {
+                "type": "number",
+                "description": "최소 신뢰도 (0.0-1.0)"
+            }
+        }
+
+    def _get_required_params(self) -> List[str]:
+        return ["event_id"]
+
+    def execute(
+        self,
+        event_id: str,
+        pattern_type: str = "all",
+        min_confidence: float = 0.5,
+        related_sensors: Optional[List[str]] = None,
+        alarm_id: Optional[str] = None,
+        **kwargs
+    ) -> ToolResult:
+        """패턴 마이닝 실행"""
+        start_time = datetime.now()
+
+        # alarm_id가 제공되면 event_id로 사용 (호환성)
+        if alarm_id and not event_id:
+            event_id = alarm_id
+
+        result = {"event_id": event_id, "patterns": {}}
+
+        # 이벤트 패턴 조회
+        if event_id in self.patterns:
+            pattern_data = self.patterns[event_id]
+
+            if pattern_type in ["co_occurrence", "all"]:
+                # 동시 발생 패턴
+                co_occurs = []
+                for event in pattern_data.get("co_occurs", []):
+                    conf = pattern_data["confidence"].get(event, 0)
+                    if conf >= min_confidence:
+                        co_occurs.append({
+                            "event": event,
+                            "confidence": conf,
+                            "relation": "CO_OCCURS"
+                        })
+                result["patterns"]["co_occurrence"] = sorted(
+                    co_occurs, key=lambda x: x["confidence"], reverse=True
+                )
+
+                # 선행 이벤트 (이 이벤트 전에 발생)
+                precedes = []
+                for event in pattern_data.get("follows", []):
+                    conf = pattern_data["confidence"].get(event, 0)
+                    if conf >= min_confidence:
+                        precedes.append({
+                            "event": event,
+                            "confidence": conf,
+                            "relation": "PRECEDES"
+                        })
+                result["patterns"]["precedes"] = sorted(
+                    precedes, key=lambda x: x["confidence"], reverse=True
+                )
+
+                # 후행 이벤트 (이 이벤트 후에 발생)
+                follows = []
+                for event in pattern_data.get("precedes", []):
+                    conf = pattern_data["confidence"].get(event, 0)
+                    if conf >= min_confidence:
+                        follows.append({
+                            "event": event,
+                            "confidence": conf,
+                            "relation": "FOLLOWS"
+                        })
+                result["patterns"]["follows"] = sorted(
+                    follows, key=lambda x: x["confidence"], reverse=True
+                )
+
+            if pattern_type in ["sequence", "all"]:
+                # 시퀀스 패턴 (해당 이벤트 포함)
+                sequences = [
+                    seq for seq in self.sequence_patterns
+                    if event_id in seq["sequence"] and seq["confidence"] >= min_confidence
+                ]
+                result["patterns"]["sequences"] = sequences
+
+            # 요약 통계
+            all_related = (
+                pattern_data.get("co_occurs", []) +
+                pattern_data.get("precedes", []) +
+                pattern_data.get("follows", [])
+            )
+            high_conf_count = sum(
+                1 for e in all_related
+                if pattern_data["confidence"].get(e, 0) >= 0.8
+            )
+
+            result["summary"] = {
+                "total_related_events": len(all_related),
+                "high_confidence_relations": high_conf_count,
+                "top_related": sorted(
+                    [(e, pattern_data["confidence"].get(e, 0)) for e in all_related],
+                    key=lambda x: x[1], reverse=True
+                )[:5]
+            }
+
+        else:
+            # 알려지지 않은 이벤트 - 관련 센서 기반 분석
+            result["patterns"]["note"] = f"No direct patterns found for {event_id}"
+            if related_sensors:
+                result["patterns"]["related_sensor_patterns"] = []
+                for sensor in related_sensors:
+                    if sensor in self.patterns:
+                        result["patterns"]["related_sensor_patterns"].append({
+                            "sensor": sensor,
+                            "co_occurs": self.patterns[sensor].get("co_occurs", [])[:3]
+                        })
+
+        execution_time = (datetime.now() - start_time).total_seconds() * 1000
+
+        return ToolResult(
+            success=True,
+            data=result,
+            message=f"Pattern mining completed for {event_id}",
+            execution_time_ms=execution_time
+        )
+
+
 class ToolRegistry:
     """도구 레지스트리"""
 
@@ -667,4 +893,5 @@ def create_default_registry(data_path: Optional[str] = None) -> ToolRegistry:
     registry.register(TimeSeriesAnalysisTool(data_path=data_path))
     registry.register(RootCauseAnalysisTool())
     registry.register(AlarmHistoryTool())
+    registry.register(PatternMiningTool())
     return registry
