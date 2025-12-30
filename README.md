@@ -4,20 +4,22 @@
 
 ## 개요
 
-FDC(Fault Detection & Classification), SPC(Statistical Process Control), MES(Manufacturing Execution System) 등 레거시 시스템의 데이터를 통합하여 **그래프 기반 온톨로지**로 모델링하고, 실시간 분석을 제공하는 플랫폼입니다.
+FDC(Fault Detection & Classification), SPC(Statistical Process Control), MES(Manufacturing Execution System) 등 레거시 시스템의 데이터를 통합하여 **그래프 기반 온톨로지**로 모델링하고, **AI Agent 기반 분석**을 제공하는 플랫폼입니다.
 
 ### 주요 기능
 
 - **온톨로지 기반 데이터 모델링**: 설비, 공정, 품질 데이터를 그래프 구조로 연결
+- **배터리 제조 계층 구조**: Roll → Cell → Module → Pack 추적성 지원
+- **AI Agent 분석**: EXAONE 3.5 LLM 기반 자연어 질의응답
 - **암묵적 관계 발견**: 상관분석, 인과성 분석으로 숨겨진 관계 자동 발견
 - **실시간 이상 감지**: 앙상블 알고리즘 기반 이상 탐지 및 경보
-- **도메인 지식 통합**: 엔지니어 경험을 구조화하여 AI Agent에 반영
+- **도메인 지식 통합**: 배터리 제조 인과관계를 구조화하여 AI Agent에 반영
 
 ## 아키텍처
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Legacy Systems (FDC, SPC, MES)               │
+│                    Legacy Systems (FDC, MES, ERP)               │
 └─────────────────────────────────────────────────────────────────┘
                               │ Debezium CDC
                               ▼
@@ -39,50 +41,109 @@ FDC(Fault Detection & Classification), SPC(Statistical Process Control), MES(Man
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                   FastAPI + GraphQL                              │
+│           + FDC Analysis Agent (EXAONE 3.5)                     │
 │              + Relationship Discovery Engine                     │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    React + D3.js Frontend                        │
+│              React + D3.js Frontend + Agent Chat                │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+## AI Agent (FDC Analysis)
+
+EXAONE 3.5 (LG AI Research) 기반 배터리 제조 전문가 Agent입니다.
+
+### 기능
+
+| 기능 | 설명 |
+|------|------|
+| **자연어 질의** | "Cell 용량 불량 원인은?" 형태로 질문 |
+| **도구 호출** | 온톨로지 검색, 시계열 분석, 알람 이력 조회 |
+| **근본원인 분석** | 인과관계 기반 원인 추적 |
+| **점검 순서 제안** | 도메인 지식 기반 점검 가이드 |
+
+### 배터리 도메인 지식
+
+```
+## 공정별 인과관계
+
+전극 공정 (Roll)
+- COATING_THICKNESS → CELL_CAPACITY: 코팅 두께 변동 → 셀 용량 편차
+- DRYING_TEMP → ELECTRODE_RESISTANCE: 건조 온도 이상 → 전극 저항 증가
+
+화성/에이징 공정
+- FORMATION_TEMP → SEI_QUALITY: 화성 온도 이상 → SEI 품질 저하
+- FORMATION_CURRENT → CAPACITY_LOSS: 화성 전류 과다 → 용량 손실
+
+모듈/팩 공정
+- CELL_VOLTAGE_DEVIATION → MODULE_IMBALANCE: 셀 전압 편차 → 모듈 불균형
+- COOLANT_FLOW → THERMAL_RUNAWAY_RISK: 냉각수 유량 부족 → 열폭주 위험
+```
+
+### Agent API
+
+```bash
+# 자연어 분석
+POST /api/agent/analyze
+{
+  "query": "ETCH-001 온도 알람 발생. 원인은?"
+}
+
+# 알람 분석
+POST /api/agent/analyze/alarm
+{
+  "equipment_id": "ETCH-001",
+  "alarm_code": "ALM_HIGH_TEMP"
+}
+
+# 프롬프트 조회/수정
+GET  /api/agent/prompt
+PUT  /api/agent/prompt
 ```
 
 ## 온톨로지 모델
 
+### 배터리 제조 계층 구조
+
+```
+Roll (전극롤)
+  │
+  │ PRODUCES (1:N)
+  ▼
+Cell (셀)
+  │
+  │ ASSEMBLED_INTO (N:1)
+  ▼
+Module (모듈)
+  │
+  │ ASSEMBLED_INTO (N:1)
+  ▼
+Pack (팩)
+```
+
 ### Object Types (정점)
 
-| Object Type | 설명 |
-|-------------|------|
-| Equipment | 설비/장비 |
-| Process | 공정 단계 |
-| Lot | 생산 단위 |
-| Wafer | 개별 웨이퍼 |
-| Recipe | 공정 레시피 |
-| Measurement | 측정값 |
-| Alarm | 알람/이벤트 |
+| Object Type | 설명 | 주요 속성 |
+|-------------|------|----------|
+| **Roll** | 전극 롤 | roll_type, coating_thickness, porosity |
+| **Cell** | 배터리 셀 | capacity_ah, voltage_v, resistance, grade |
+| **Module** | 배터리 모듈 | cell_count, series/parallel, BMS 정보 |
+| **Pack** | 배터리 팩 | energy_kwh, EOL 테스트, 출하 정보 |
+| Equipment | 설비/장비 | type, status, location |
+| Process | 공정 단계 | step_id, recipe |
+| Alarm | 알람/이벤트 | severity, code, timestamp |
 
-### Link Types (간선) - 명시적 관계
+### Link Types (간선)
 
-| Link Type | 관계 |
-|-----------|------|
-| PROCESSED_AT | Lot → Equipment |
-| BELONGS_TO | Wafer → Lot |
-| USES_RECIPE | Process → Recipe |
-| GENERATES_ALARM | Equipment → Alarm |
-| NEXT_STEP | Process → Process |
-| MEASURED_BY | Wafer → Measurement |
-| AFFECTS_LOT | Alarm → Lot |
-
-### Link Types (간선) - 암묵적 관계 (자동 발견)
-
-| Link Type | 발견 방법 | 설명 |
-|-----------|----------|------|
-| CORRELATES_WITH | 상관분석 | 파라미터 간 통계적 상관관계 |
-| INFLUENCES | 인과분석 | Granger Causality 기반 인과관계 |
-| PRECEDES | 패턴마이닝 | 시간적 선후관계 |
-| CO_OCCURS | 연관규칙 | 동시 발생 이벤트 패턴 |
-| ROOT_CAUSE_OF | 인과분석 | 이상 발생의 근본 원인 |
+| Link Type | 관계 | 설명 |
+|-----------|------|------|
+| **PRODUCES** | Roll → Cell | 롤에서 셀 생산 (1:N) |
+| **ASSEMBLED_INTO** | Cell → Module → Pack | 조립 관계 (N:1) |
+| PROCESSED_AT | Lot → Equipment | 처리 설비 |
+| CORRELATES_WITH | Parameter ↔ Parameter | 상관관계 (자동 발견) |
+| INFLUENCES | Parameter → Parameter | 인과관계 (자동 발견) |
 
 ## 디렉토리 구조
 
@@ -94,109 +155,47 @@ manufacturing-ontology-platform/
 ├── ontology/                   # 온톨로지 정의
 │   ├── schemas/
 │   │   ├── objects/           # Object Type YAML
+│   │   │   ├── roll.yaml      # 전극 롤 ★
+│   │   │   ├── cell.yaml      # 배터리 셀 ★
+│   │   │   ├── module.yaml    # 배터리 모듈 ★
+│   │   │   ├── pack.yaml      # 배터리 팩 ★
+│   │   │   └── equipment.yaml
 │   │   └── links/             # Link Type YAML
+│   │       ├── produces_cell.yaml      # Roll→Cell ★
+│   │       ├── assembled_into_module.yaml  # Cell→Module ★
+│   │       └── assembled_into_pack.yaml    # Module→Pack ★
 │   └── migrations/            # SQL 마이그레이션
-│
-├── infra/                      # 인프라 설정
-│   ├── postgres/              # PostgreSQL + AGE
-│   └── timescaledb/           # TimescaleDB
 │
 ├── api/                        # FastAPI 서버
 │   └── src/
-│       ├── routers/           # REST API 엔드포인트
-│       ├── services/          # 비즈니스 로직
-│       └── graphql/           # GraphQL 스키마
+│       ├── routers/
+│       │   ├── agent.py       # AI Agent API ★
+│       │   ├── ontology.py
+│       │   └── analytics.py
+│       ├── services/
+│       └── graphql/
+│
+├── analytics/                  # 분석 엔진
+│   └── src/
+│       ├── agent/             # FDC Analysis Agent ★
+│       │   ├── fdc_agent.py   # Agent 코어
+│       │   ├── ollama_client.py # Ollama LLM 클라이언트
+│       │   └── tools.py       # 분석 도구
+│       ├── anomaly_detection/
+│       ├── relationship_discovery/
+│       └── spc/
 │
 ├── frontend/                   # React 프론트엔드
+│   └── src/
+│       ├── components/
+│       │   ├── AgentChat/     # Agent 채팅 UI ★
+│       │   ├── OntologyGraph/
+│       │   └── Dashboard/
+│       └── pages/
+│           └── AgentPage.tsx  # Agent 페이지 ★
 │
-├── stream-processing/          # Flink 스트림 처리
-│   └── src/jobs/
-│       ├── fdc_enrichment.py  # FDC 데이터 보강
-│       ├── spc_control_chart.py # SPC 관리도
-│       ├── cep_anomaly_detection.py # 복합 이벤트 처리
-│       └── window_aggregation.py # 윈도우 집계
-│
-├── ingestion/                  # 데이터 수집 (Debezium CDC)
-│   └── transformers/          # 데이터 변환기
-│
-├── analytics/                  # 분석 엔진 (핵심 모듈)
-│   ├── src/
-│   │   ├── anomaly_detection/ # 이상 탐지 알고리즘
-│   │   ├── spc/              # SPC 분석
-│   │   ├── prediction/       # 예측 모델
-│   │   └── relationship_discovery/  # 관계 발견 엔진 ★
-│   ├── realtime_alert_system/ # 실시간 경보 시스템
-│   ├── templates/             # Excel 템플릿
-│   ├── sample_data/           # 테스트 데이터
-│   └── results/               # 분석 결과
-│
-├── scripts/                    # 유틸리티 스크립트
 └── docs/                       # 상세 문서
 ```
-
-## 핵심 모듈 설명
-
-### 1. 관계 발견 엔진 (Relationship Discovery)
-
-데이터에서 숨겨진 관계를 자동으로 발견하는 핵심 모듈입니다.
-
-**위치**: `analytics/src/relationship_discovery/`
-
-| 파일 | 기능 |
-|------|------|
-| `correlation_analyzer.py` | Pearson/Spearman 상관분석, Cross-correlation |
-| `causality_analyzer.py` | Granger Causality, Transfer Entropy |
-| `pattern_detector.py` | Sequential Pattern Mining, Association Rules |
-| `relationship_store.py` | 발견된 관계 → 온톨로지 저장 |
-| `discovery_pipeline.py` | 통합 파이프라인, 리포트 생성 |
-| `expert_knowledge_loader.py` | 도메인 지식 로더 |
-
-**사용법**:
-```python
-from relationship_discovery import DiscoveryPipeline, DiscoveryConfig
-
-config = DiscoveryConfig()
-pipeline = DiscoveryPipeline(config)
-
-# 관계 발견 실행
-relationships = pipeline.discover_all(
-    pv_data=df,           # 공정 변수 데이터
-    event_data=events,    # 이벤트 데이터
-    pv_columns=['temp', 'pressure', 'vibration']
-)
-
-# 리포트 생성
-pipeline.export_results('report.html', format='html')
-```
-
-### 2. 실시간 경보 시스템 (Realtime Alert)
-
-앙상블 이상 탐지 기반 실시간 경보 시스템입니다.
-
-**위치**: `analytics/realtime_alert_system/`
-
-**기능**:
-- Z-Score, CUSUM, Isolation Forest, LOF 앙상블
-- WebSocket 기반 실시간 대시보드
-- 경보 이력 관리
-
-**실행**:
-```bash
-cd analytics
-python scripts/run_realtime_alert.py
-# 브라우저: http://localhost:8000
-```
-
-### 3. 도메인 지식 템플릿
-
-엔지니어의 경험 지식을 구조화하여 입력받는 Excel 템플릿입니다.
-
-**위치**: `analytics/templates/`
-
-| 템플릿 | 용도 |
-|--------|------|
-| `expert_knowledge_template.xlsx` | 일반 도메인 지식 (인과관계, 알람원인 등) |
-| `equipment_control_relationship_template.xlsx` | 설비 제어 관계 (Setpoint-PV-품질) |
 
 ## 빠른 시작
 
@@ -213,117 +212,70 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. 관계 발견 테스트 실행
+### 2. Ollama + EXAONE 설치
 
 ```bash
-# 샘플 데이터 생성
-cd analytics
-python scripts/generate_sample_data.py
-
-# 관계 발견 테스트
-python scripts/test_relationship_discovery.py
-
-# 실제 데이터로 테스트
-python scripts/test_real_data_discovery.py
+# Ollama 설치 (https://ollama.ai)
+# EXAONE 3.5 모델 다운로드
+ollama pull exaone3.5:7.8b
 ```
 
-### 3. 전체 서비스 시작 (Docker)
+### 3. API 서버 실행
 
 ```bash
-# 전체 서비스 시작
-docker-compose up -d
-
-# 단계별 시작
-docker-compose up -d postgres timescaledb redis  # DB
-docker-compose up -d kafka zookeeper             # Kafka
-docker-compose up -d api frontend                # App
+cd api/src
+PYTHONPATH=.:../../analytics/src python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 ```
+
+### 4. 프론트엔드 실행
+
+```bash
+cd frontend
+npm install
+npm run dev
+# 브라우저: http://localhost:3000/agent
+```
+
+### 5. Agent 테스트
+
+```bash
+# curl로 테스트
+curl -X POST http://localhost:8001/api/agent/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Cell 용량 불량이 발생했습니다. Roll 공정부터 점검 순서를 알려주세요."}'
+```
+
+## 접속 URL
+
+| 서비스 | URL | 설명 |
+|--------|-----|------|
+| Frontend | http://localhost:3000 | React 대시보드 |
+| **AI Agent** | http://localhost:3000/agent | Agent 채팅 UI |
+| API Docs | http://localhost:8001/docs | Swagger UI |
+| Ontology Graph | http://localhost:3000/ontology | 그래프 시각화 |
 
 ## 기술 스택
 
-- **그래프 DB**: PostgreSQL + Apache AGE
-- **시계열 DB**: TimescaleDB
-- **메시지 브로커**: Apache Kafka
-- **CDC**: Debezium
-- **스트림 처리**: Apache Flink (PyFlink)
-- **분석 엔진**: Python (NumPy, SciPy, scikit-learn)
-- **API**: FastAPI + GraphQL (Strawberry)
-- **프론트엔드**: React + D3.js
-- **캐시**: Redis
-
-## Cypher 쿼리 예시
-
-```sql
--- AGE 로드
-LOAD 'age';
-SET search_path = ag_catalog, "$user", public;
-
--- 설비별 처리 중인 Lot 조회
-SELECT * FROM cypher('manufacturing', $$
-  MATCH (l:Lot)-[r:PROCESSED_AT]->(e:Equipment)
-  WHERE e.status = 'RUNNING'
-  RETURN e.equipment_id, l.lot_id, r.recipe_id
-$$) as (equipment agtype, lot agtype, recipe agtype);
-
--- 인과관계 경로 탐색 (발견된 관계 활용)
-SELECT * FROM cypher('manufacturing', $$
-  MATCH path = (p1:Parameter)-[:INFLUENCES*1..3]->(p2:Parameter)
-  WHERE p1.name = 'PRESSURE' AND p2.name = 'ETCH_RATE'
-  RETURN path, [r in relationships(path) | r.lag] as lags
-$$) as (path agtype, lags agtype);
-
--- 알람 근본원인 분석
-SELECT * FROM cypher('manufacturing', $$
-  MATCH (p:Parameter)-[:ROOT_CAUSE_OF]->(a:Alarm)
-  WHERE a.severity = 'CRITICAL'
-  RETURN p.name as root_cause, a.alarm_code, a.description
-  ORDER BY a.timestamp DESC
-$$) as (root_cause agtype, alarm agtype, description agtype);
-```
-
-## 온톨로지 그래프 시각화
-
-### 주요 기능
-
-| 기능 | 설명 |
+| 분류 | 기술 |
 |------|------|
-| **레이아웃 전환** | Force, Hierarchical, Radial, Grid 레이아웃 지원 |
-| **노드 필터링** | 타입별 노드/관계 표시/숨김 |
-| **경로 탐색** | 두 노드 간 최단 경로 시각화 (BFS) |
-| **노드 선택 강조** | 클릭 시 연결된 엣지 청록색 하이라이트 |
-| **Discoveries 패널** | 발견된 관계 검증/거부 워크플로우 |
-
-### 접속 URL
-
-| 서비스 | URL |
-|--------|-----|
-| Frontend | http://localhost:3000 |
-| API Docs | http://localhost:8000/docs |
-| Kafka UI | http://localhost:8080 |
-
-### API 엔드포인트
-
-```
-# 온톨로지
-GET  /api/ontology/graph/traverse  - 그래프 탐색
-GET  /api/ontology/graph/path      - 경로 탐색
-
-# 발견된 관계
-GET  /api/analytics/discoveries              - 목록 조회
-POST /api/analytics/discoveries/{id}/verify  - 검증 승인
-POST /api/analytics/discoveries/{id}/reject  - 검증 거부
-
-# SPC/이상감지
-GET  /api/analytics/anomalies        - 이상 감지 결과
-GET  /api/analytics/spc/control-chart - SPC 관리도
-```
+| **AI/LLM** | Ollama + EXAONE 3.5:7.8b (LG AI Research) |
+| **그래프 DB** | PostgreSQL + Apache AGE |
+| **시계열 DB** | TimescaleDB |
+| **메시지 브로커** | Apache Kafka |
+| **스트림 처리** | Apache Flink (PyFlink) |
+| **API** | FastAPI + GraphQL (Strawberry) |
+| **프론트엔드** | React + TypeScript + D3.js |
+| **분석** | Python (NumPy, SciPy, scikit-learn) |
 
 ## 향후 계획
 
-1. **Phase 1 (PoC)**: 샘플 데이터로 관계 발견 검증 ✅
-2. **Phase 2**: DataWarehouse 연동, 실제 데이터 분석
-3. **Phase 3**: AI Agent 통합, 자동 근본원인 분석
-4. **Phase 4**: Production 배포, 실시간 모니터링
+| Phase | 내용 | 상태 |
+|-------|------|------|
+| Phase 1 | 샘플 데이터로 관계 발견 검증 | ✅ 완료 |
+| Phase 2 | 실시간 경보 시스템 구축 | ✅ 완료 |
+| Phase 3 | AI Agent 통합, 배터리 도메인 지식 | ✅ 완료 |
+| Phase 4 | 실제 DB 연동, RAG 지식 시스템 | 🔜 예정 |
+| Phase 5 | Production 배포, 성능 최적화 | 🔜 예정 |
 
 ## 라이선스
 
