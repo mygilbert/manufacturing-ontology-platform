@@ -271,30 +271,57 @@ class FDCAnalysisAgent:
 - 배터리 제조 공정(Roll → Cell → Module → Pack)의 이상 현상을 분석합니다
 - 설비 알람 발생 시 근본 원인과 점검 순서를 제안합니다
 - 공정 데이터를 분석하여 품질 이상 패턴을 탐지합니다
-- Roll/Cell/Module/Pack 간 추적성 기반 불량 원인을 분석합니다
 
-## 사용 가능한 도구
-다음 도구를 사용하여 정보를 수집할 수 있습니다:
+## 중요: 반드시 도구를 사용하세요!
+질문에 답하기 전에 **반드시** 아래 도구들을 호출하여 데이터를 수집하세요.
+도구 없이 추측으로 답변하지 마세요.
 
+### 사용 가능한 도구
 {tool_descriptions}
 
-## 도구 호출 형식
-도구를 사용하려면 다음 형식을 사용하세요:
+## 도구 호출 형식 (필수!)
+도구를 호출할 때는 반드시 아래 형식을 사용하세요:
+
 ```tool
 {{"tool": "도구이름", "params": {{"param1": "value1"}}}}
 ```
 
-## 언어 규칙 (매우 중요!)
-- 반드시 100% 한국어로만 응답하세요
-- 중국어 한자를 절대 사용하지 마세요 (过高, 详细, 检查, 磨损, 修正 등 금지)
-- 한글로 표현하세요: 과도하게 높음, 상세한, 점검, 마모, 수정
-- 기술 용어만 영어 허용 (RF Power, Temperature, Bearing 등)
+### 도구 호출 예시
 
-## 응답 규칙
-1. 질문을 분석하고 필요한 도구를 호출하세요
-2. 도구 결과를 바탕으로 분석하세요
-3. 근본 원인과 권장 조치를 제시하세요
-4. 불확실한 경우 "추가 분석 필요"라고 명시하세요
+예시 1: 설비 정보 조회
+```tool
+{{"tool": "ontology_search", "params": {{"query_type": "equipment", "entity_id": "ETCH-001"}}}}
+```
+
+예시 2: 시계열 분석
+```tool
+{{"tool": "time_series_analysis", "params": {{"sensor_id": "TEMP_001", "analysis_type": "all"}}}}
+```
+
+예시 3: 패턴 분석
+```tool
+{{"tool": "pattern_mining", "params": {{"event_id": "TEMP_HIGH", "pattern_type": "all"}}}}
+```
+
+예시 4: 근본원인 분석
+```tool
+{{"tool": "root_cause_analysis", "params": {{"alarm_code": "ALM_HIGH_TEMP"}}}}
+```
+
+예시 5: 알람 이력 조회
+```tool
+{{"tool": "alarm_history", "params": {{"equipment_id": "ETCH-001", "hours": 24}}}}
+```
+
+## 응답 순서 (ReAct 패턴)
+1. **Thought**: 질문을 분석하고 어떤 도구가 필요한지 설명
+2. **Action**: 도구 호출 (```tool 블록 사용)
+3. **Observation**: 도구 결과 확인 (시스템이 자동 제공)
+4. **Answer**: 결과를 바탕으로 한국어로 분석 결과 제시
+
+## 언어 규칙
+- 반드시 한국어로 응답하세요
+- 기술 용어만 영어 허용 (RF Power, Temperature 등)
 
 ## 검증된 인과관계
 {domain_knowledge}
@@ -534,6 +561,67 @@ class FDCAnalysisAgent:
 
         return formatted
 
+    def _determine_required_tools(self, query: str) -> List[Dict]:
+        """쿼리 분석하여 필요한 도구 자동 결정"""
+        query_lower = query.lower()
+        tools_to_call = []
+
+        # 키워드 기반 도구 결정
+        if any(kw in query_lower for kw in ['alarm', 'alert', '알람', '알림', '경보']):
+            # 알람 관련 - 알람 이력 + 근본원인 분석
+            equipment_match = re.search(r'(ETCH-\d+|[A-Z]+-\d+)', query, re.IGNORECASE)
+            equipment_id = equipment_match.group(1) if equipment_match else "ETCH-001"
+            tools_to_call.append({
+                "tool": "alarm_history",
+                "params": {"equipment_id": equipment_id, "hours": 24}
+            })
+            tools_to_call.append({
+                "tool": "root_cause_analysis",
+                "params": {"alarm_code": "ALM_HIGH_TEMP"}
+            })
+
+        if any(kw in query_lower for kw in ['temperature', 'temp', '온도', 'high', 'low']):
+            # 온도 관련 - 시계열 분석 + 패턴 마이닝
+            tools_to_call.append({
+                "tool": "time_series_analysis",
+                "params": {"sensor_id": "TEMP_001", "analysis_type": "all"}
+            })
+            tools_to_call.append({
+                "tool": "pattern_mining",
+                "params": {"event_id": "TEMP_HIGH", "pattern_type": "all"}
+            })
+
+        if any(kw in query_lower for kw in ['equipment', 'sensor', '설비', '센서', 'etch']):
+            # 설비 관련 - 온톨로지 검색
+            equipment_match = re.search(r'(ETCH-\d+|[A-Z]+-\d+)', query, re.IGNORECASE)
+            equipment_id = equipment_match.group(1) if equipment_match else "ETCH-001"
+            tools_to_call.append({
+                "tool": "ontology_search",
+                "params": {"query_type": "equipment", "entity_id": equipment_id, "include_related": True}
+            })
+
+        if any(kw in query_lower for kw in ['cause', 'root', 'why', '원인', '이유', '분석']):
+            # 원인 분석 - 근본원인 분석 + 패턴 마이닝
+            if not any(t["tool"] == "root_cause_analysis" for t in tools_to_call):
+                tools_to_call.append({
+                    "tool": "root_cause_analysis",
+                    "params": {"target_param": "TEMP_001", "depth": 3}
+                })
+            if not any(t["tool"] == "pattern_mining" for t in tools_to_call):
+                tools_to_call.append({
+                    "tool": "pattern_mining",
+                    "params": {"event_id": "ALARM_TRIGGER", "pattern_type": "all"}
+                })
+
+        # 기본 도구 (아무것도 매치되지 않은 경우)
+        if not tools_to_call:
+            tools_to_call.append({
+                "tool": "ontology_search",
+                "params": {"query_type": "equipment"}
+            })
+
+        return tools_to_call[:3]  # 최대 3개 도구
+
     def analyze(self, query: str) -> AnalysisResult:
         """질문 분석 및 응답 생성"""
         start_time = datetime.now()
@@ -553,13 +641,31 @@ class FDCAnalysisAgent:
             )
 
         try:
+            # 1단계: 자동 도구 호출 (키워드 기반)
+            auto_tools = self._determine_required_tools(query)
+            auto_tool_results = self._execute_tools(auto_tools)
+            tool_context = self._format_tool_results(auto_tool_results)
+
+            if self.config.verbose:
+                print(f"[Auto Tools] Called {len(auto_tools)} tools: {[t['tool'] for t in auto_tools]}")
+
+            # 2단계: 도구 결과를 포함한 프롬프트로 LLM 호출
+            enhanced_query = f"""## 사용자 질문
+{query}
+
+## 자동 수집된 분석 데이터
+{tool_context}
+
+위 데이터를 기반으로 사용자 질문에 대한 분석 결과를 한국어로 제공해주세요.
+근본 원인, 영향 관계, 점검 순서를 포함해주세요."""
+
             # 대화 초기화 (RAG 컨텍스트 포함)
             messages = [
                 ChatMessage(role="system", content=self._build_system_prompt(query=query)),
-                ChatMessage(role="user", content=query)
+                ChatMessage(role="user", content=enhanced_query)
             ]
 
-            all_tool_calls = []
+            all_tool_calls = auto_tool_results  # 자동 호출된 도구 결과 포함
             iteration = 0
 
             while iteration < self.config.max_tool_calls:
