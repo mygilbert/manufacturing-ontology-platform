@@ -5,6 +5,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import classNames from 'classnames';
 
+interface ToolCall {
+  tool: string;
+  params: Record<string, any>;
+  success: boolean;
+  message: string;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -12,6 +19,7 @@ interface Message {
   timestamp: Date;
   executionTime?: number;
   ragSources?: RagSource[];
+  toolCalls?: ToolCall[];
 }
 
 interface RagSource {
@@ -58,6 +66,22 @@ const DOC_TYPE_COLORS: Record<string, string> = {
   impossible_relationship: 'bg-slate-500/20 text-slate-400',
   discovered_relationship: 'bg-emerald-500/20 text-emerald-400',
   discovery_summary: 'bg-cyan-500/20 text-cyan-400',
+};
+
+const TOOL_LABELS: Record<string, string> = {
+  ontology_search: '온톨로지 검색',
+  time_series_analysis: '시계열 분석',
+  pattern_mining: '패턴 마이닝',
+  root_cause_analysis: '근본원인 분석',
+  alarm_history: '알람 이력',
+};
+
+const TOOL_ICONS: Record<string, string> = {
+  ontology_search: '🔍',
+  time_series_analysis: '📊',
+  pattern_mining: '🔗',
+  root_cause_analysis: '🎯',
+  alarm_history: '🔔',
 };
 
 export const AgentChat: React.FC<AgentChatProps> = ({ className }) => {
@@ -155,6 +179,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ className }) => {
         timestamp: new Date(),
         executionTime: agentResponse.execution_time_ms,
         ragSources: ragSources,
+        toolCalls: agentResponse.tool_calls || [],
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -327,13 +352,45 @@ export const AgentChat: React.FC<AgentChatProps> = ({ className }) => {
                   {message.role === 'user' ? (
                     <p>{message.content}</p>
                   ) : (
-                    <div className="prose prose-invert prose-sm max-w-none">
-                      {formatContent(message.content)}
-                    </div>
+                    <>
+                      {/* Tool Calls Display */}
+                      {message.toolCalls && message.toolCalls.length > 0 && (
+                        <div className="mb-3 p-3 bg-slate-900/50 rounded-lg border border-slate-700">
+                          <p className="text-xs text-slate-500 mb-2 font-medium">도구 호출 결과</p>
+                          <div className="flex flex-wrap gap-2">
+                            {message.toolCalls.map((tool, idx) => (
+                              <div
+                                key={idx}
+                                className={classNames(
+                                  'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs',
+                                  tool.success
+                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    : 'bg-red-500/20 text-red-400'
+                                )}
+                              >
+                                <span>{TOOL_ICONS[tool.tool] || '🔧'}</span>
+                                <span className="font-medium">{TOOL_LABELS[tool.tool] || tool.tool}</span>
+                                <span className={tool.success ? 'text-emerald-300' : 'text-red-300'}>
+                                  {tool.success ? '✓' : '✗'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="prose prose-invert prose-sm max-w-none">
+                        {formatContent(message.content)}
+                      </div>
+                    </>
                   )}
                   {message.executionTime && (
                     <p className="text-xs text-slate-500 mt-2">
                       Response time: {(message.executionTime / 1000).toFixed(1)}s
+                      {message.toolCalls && message.toolCalls.length > 0 && (
+                        <span className="ml-2">
+                          | {message.toolCalls.length} tools called
+                        </span>
+                      )}
                     </p>
                   )}
                 </div>
