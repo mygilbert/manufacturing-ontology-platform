@@ -1,0 +1,211 @@
+# Roll Object Type
+# 배터리 전극 롤을 나타내는 온톨로지 객체
+
+objectType: Roll
+version: "1.0.0"
+description: "배터리 전극 코팅/건조 공정의 생산 단위 (전극 롤)"
+
+# 기본 키
+primaryKey: roll_id
+
+# 속성 정의
+properties:
+  roll_id:
+    type: string
+    description: "Roll 고유 식별자"
+    required: true
+    indexed: true
+    example: "R20231201001"
+
+  roll_type:
+    type: enum
+    description: "전극 유형"
+    required: true
+    values:
+      - ANODE       # 음극
+      - CATHODE     # 양극
+    example: "CATHODE"
+
+  material_lot:
+    type: string
+    description: "원자재 로트 번호"
+    required: true
+    example: "MAT-NCM811-001"
+
+  coating_recipe:
+    type: string
+    description: "코팅 레시피 ID"
+    required: true
+    example: "COAT-NCM-001"
+
+  status:
+    type: enum
+    description: "Roll 상태"
+    required: true
+    values:
+      - COATING     # 코팅 중
+      - DRYING      # 건조 중
+      - SLITTING    # 슬리팅 중
+      - COMPLETED   # 완료
+      - HOLD        # 보류
+      - SCRAPPED    # 폐기
+    default: "COATING"
+
+  length_m:
+    type: float
+    description: "롤 길이 (m)"
+    required: true
+    unit: "m"
+    example: 1000.0
+
+  width_mm:
+    type: float
+    description: "롤 폭 (mm)"
+    required: true
+    unit: "mm"
+    example: 1200.0
+
+  coating_thickness_um:
+    type: float
+    description: "코팅 두께 (μm)"
+    required: false
+    unit: "μm"
+    example: 150.0
+
+  coating_weight_gsm:
+    type: float
+    description: "코팅 중량 (g/m²)"
+    required: false
+    unit: "g/m²"
+    example: 25.5
+
+  porosity_percent:
+    type: float
+    description: "기공률 (%)"
+    required: false
+    unit: "%"
+    min: 0
+    max: 100
+
+  start_time:
+    type: datetime
+    description: "Roll 생산 시작 시간"
+    required: true
+
+  end_time:
+    type: datetime
+    description: "Roll 생산 완료 시간"
+    required: false
+
+  line_id:
+    type: string
+    description: "생산 라인 ID"
+    required: true
+    example: "COAT-LINE-01"
+
+  operator:
+    type: string
+    description: "담당 작업자"
+    required: false
+
+  comments:
+    type: string
+    description: "비고"
+    required: false
+
+# 시계열 데이터 (공정 파라미터)
+timeseries:
+  enabled: true
+  parameters:
+    - name: coating_speed
+      unit: "m/min"
+      description: "코팅 속도"
+    - name: drying_temp_zone1
+      unit: "C"
+      description: "건조 온도 Zone 1"
+    - name: drying_temp_zone2
+      unit: "C"
+      description: "건조 온도 Zone 2"
+    - name: drying_temp_zone3
+      unit: "C"
+      description: "건조 온도 Zone 3"
+    - name: slurry_viscosity
+      unit: "cP"
+      description: "슬러리 점도"
+    - name: tension
+      unit: "N"
+      description: "장력"
+    - name: humidity
+      unit: "%"
+      description: "습도"
+
+# 관계 정의
+outgoingLinks:
+  - linkType: PRODUCES
+    targetObject: Cell
+    description: "이 Roll에서 생산된 Cell"
+    cardinality: "1:N"
+
+  - linkType: PROCESSED_AT
+    targetObject: Equipment
+    description: "처리된 설비"
+
+  - linkType: USES_MATERIAL
+    targetObject: Material
+    description: "사용된 원자재"
+
+incomingLinks:
+  - linkType: FOLLOWS_RECIPE
+    sourceObject: Recipe
+    description: "적용된 레시피"
+
+# 집계/파생 속성
+derivedProperties:
+  cell_count:
+    type: integer
+    description: "생산된 Cell 수"
+    aggregation:
+      from: Cell
+      filter: "source_roll_id = roll_id"
+      function: "COUNT"
+
+  good_cell_count:
+    type: integer
+    description: "양품 Cell 수"
+    aggregation:
+      from: Cell
+      filter: "source_roll_id = roll_id AND status = 'GOOD'"
+      function: "COUNT"
+
+  yield:
+    type: float
+    description: "수율 (%)"
+    formula: "(good_cell_count / cell_count) * 100"
+
+# 인덱스
+indexes:
+  - fields: [roll_id]
+    unique: true
+  - fields: [roll_type, status]
+    unique: false
+  - fields: [material_lot]
+    unique: false
+  - fields: [start_time]
+    unique: false
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_ROLL_MASTER"
+    keyColumn: "ROLL_ID"
+    columnMapping:
+      roll_id: "ROLL_ID"
+      roll_type: "ELECTRODE_TYPE"
+      material_lot: "MATERIAL_LOT"
+      coating_recipe: "RECIPE_ID"
+      status: "ROLL_STATUS"
+      length_m: "ROLL_LENGTH"
+      width_mm: "ROLL_WIDTH"
+      start_time: "START_TIME"
+      end_time: "END_TIME"
+      line_id: "LINE_ID"

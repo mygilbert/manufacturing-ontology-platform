@@ -1,0 +1,301 @@
+# Module Object Type
+# 배터리 모듈을 나타내는 온톨로지 객체
+
+objectType: Module
+version: "1.0.0"
+description: "배터리 모듈 단위 (여러 Cell을 조립)"
+
+# 기본 키
+primaryKey: module_id
+
+# 속성 정의
+properties:
+  module_id:
+    type: string
+    description: "Module 고유 식별자"
+    required: true
+    indexed: true
+    example: "MOD-20231201-001"
+
+  module_model:
+    type: string
+    description: "모듈 모델명"
+    required: true
+    example: "MOD-NCM-12S"
+
+  status:
+    type: enum
+    description: "Module 상태"
+    required: true
+    values:
+      - ASSEMBLY      # 조립 중
+      - WELDING       # 용접 중
+      - BMS_INSTALL   # BMS 설치 중
+      - TESTING       # 테스트 중
+      - GOOD          # 양품
+      - NG            # 불량
+      - HOLD          # 보류
+      - SCRAPPED      # 폐기
+    default: "ASSEMBLY"
+
+  # 구성 정보
+  cell_count:
+    type: integer
+    description: "모듈 내 Cell 수"
+    required: true
+    example: 12
+
+  series_count:
+    type: integer
+    description: "직렬 연결 수"
+    required: true
+    example: 12
+
+  parallel_count:
+    type: integer
+    description: "병렬 연결 수"
+    required: true
+    default: 1
+    example: 1
+
+  configuration:
+    type: string
+    description: "셀 구성 (예: 12S1P)"
+    required: false
+    example: "12S1P"
+
+  # 전기적 특성
+  nominal_voltage_v:
+    type: float
+    description: "공칭 전압 (V)"
+    required: false
+    unit: "V"
+    example: 43.8
+
+  nominal_capacity_ah:
+    type: float
+    description: "공칭 용량 (Ah)"
+    required: false
+    unit: "Ah"
+    example: 60.0
+
+  energy_kwh:
+    type: float
+    description: "에너지 (kWh)"
+    required: false
+    unit: "kWh"
+    example: 2.63
+
+  max_voltage_v:
+    type: float
+    description: "최대 전압 (V)"
+    required: false
+    unit: "V"
+
+  min_voltage_v:
+    type: float
+    description: "최소 전압 (V)"
+    required: false
+    unit: "V"
+
+  resistance_mohm:
+    type: float
+    description: "내부 저항 (mΩ)"
+    required: false
+    unit: "mΩ"
+
+  # 물리적 특성
+  weight_kg:
+    type: float
+    description: "중량 (kg)"
+    required: false
+    unit: "kg"
+
+  dimensions:
+    type: object
+    description: "외형 치수"
+    required: false
+    properties:
+      length_mm:
+        type: float
+        unit: "mm"
+      width_mm:
+        type: float
+        unit: "mm"
+      height_mm:
+        type: float
+        unit: "mm"
+
+  # 품질 정보
+  grade:
+    type: enum
+    description: "품질 등급"
+    required: false
+    values:
+      - A
+      - B
+      - C
+      - NG
+
+  test_result:
+    type: enum
+    description: "테스트 결과"
+    required: false
+    values:
+      - PASS
+      - FAIL
+      - PENDING
+
+  defect_code:
+    type: string
+    description: "불량 코드"
+    required: false
+
+  # BMS 정보
+  bms_version:
+    type: string
+    description: "BMS 펌웨어 버전"
+    required: false
+    example: "v2.1.3"
+
+  bms_serial:
+    type: string
+    description: "BMS 시리얼 번호"
+    required: false
+
+  # 시간 정보
+  assembly_start:
+    type: datetime
+    description: "조립 시작 시간"
+    required: true
+
+  assembly_end:
+    type: datetime
+    description: "조립 완료 시간"
+    required: false
+
+  test_time:
+    type: datetime
+    description: "테스트 시간"
+    required: false
+
+  # 추적 정보
+  pack_id:
+    type: string
+    description: "조립된 Pack ID"
+    required: false
+    indexed: true
+    example: "PACK-20231201-001"
+
+  position_in_pack:
+    type: integer
+    description: "Pack 내 위치"
+    required: false
+
+  line_id:
+    type: string
+    description: "생산 라인 ID"
+    required: true
+    example: "MOD-LINE-01"
+
+# 시계열 데이터
+timeseries:
+  enabled: true
+  parameters:
+    - name: module_voltage
+      unit: "V"
+      description: "모듈 전압"
+    - name: module_current
+      unit: "A"
+      description: "모듈 전류"
+    - name: module_temp
+      unit: "C"
+      description: "모듈 온도"
+    - name: cell_voltage_min
+      unit: "V"
+      description: "셀 최저 전압"
+    - name: cell_voltage_max
+      unit: "V"
+      description: "셀 최고 전압"
+    - name: cell_voltage_delta
+      unit: "V"
+      description: "셀 전압 편차"
+
+# 관계 정의
+outgoingLinks:
+  - linkType: ASSEMBLED_INTO
+    targetObject: Pack
+    description: "조립된 Pack"
+    cardinality: "N:1"
+
+  - linkType: PROCESSED_AT
+    targetObject: Equipment
+    description: "처리된 설비"
+
+incomingLinks:
+  - linkType: ASSEMBLED_INTO
+    sourceObject: Cell
+    description: "이 Module에 조립된 Cell"
+    cardinality: "1:N"
+
+# 집계/파생 속성
+derivedProperties:
+  actual_cell_count:
+    type: integer
+    description: "실제 조립된 Cell 수"
+    aggregation:
+      from: Cell
+      filter: "module_id = module_id"
+      function: "COUNT"
+
+  avg_cell_capacity:
+    type: float
+    description: "평균 Cell 용량"
+    aggregation:
+      from: Cell
+      filter: "module_id = module_id"
+      function: "AVG(capacity_ah)"
+
+  cell_capacity_std:
+    type: float
+    description: "Cell 용량 표준편차"
+    aggregation:
+      from: Cell
+      filter: "module_id = module_id"
+      function: "STDDEV(capacity_ah)"
+
+  assembly_duration:
+    type: duration
+    description: "조립 소요 시간"
+    formula: "assembly_end - assembly_start"
+
+# 인덱스
+indexes:
+  - fields: [module_id]
+    unique: true
+  - fields: [pack_id]
+    unique: false
+  - fields: [status, grade]
+    unique: false
+  - fields: [assembly_start]
+    unique: false
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_MODULE_MASTER"
+    keyColumn: "MODULE_ID"
+    columnMapping:
+      module_id: "MODULE_ID"
+      module_model: "MODEL_NAME"
+      status: "MODULE_STATUS"
+      cell_count: "CELL_CNT"
+      series_count: "SERIES_CNT"
+      parallel_count: "PARALLEL_CNT"
+      nominal_voltage_v: "NOM_VOLTAGE"
+      nominal_capacity_ah: "NOM_CAPACITY"
+      grade: "GRADE"
+      pack_id: "PACK_ID"
+      assembly_start: "START_TIME"
+      assembly_end: "END_TIME"
+      line_id: "LINE_ID"

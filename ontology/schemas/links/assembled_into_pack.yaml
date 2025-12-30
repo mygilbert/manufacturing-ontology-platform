@@ -1,0 +1,64 @@
+# Module -> Pack 관계
+# Module이 Pack으로 조립되는 관계
+
+linkType: ASSEMBLED_INTO
+version: "1.0.0"
+description: "Module이 Pack으로 조립되는 관계 (N:1)"
+
+# 관계 방향
+source:
+  objectType: Module
+  cardinality: "N"
+
+target:
+  objectType: Pack
+  cardinality: "1"
+
+# 관계 속성
+properties:
+  position:
+    type: integer
+    description: "Pack 내 Module 위치 (1부터 시작)"
+    required: true
+    min: 1
+
+  assembly_time:
+    type: datetime
+    description: "조립 시간"
+    required: false
+
+  assembly_equipment_id:
+    type: string
+    description: "조립 설비 ID"
+    required: false
+
+  busbar_connection:
+    type: enum
+    description: "버스바 연결 상태"
+    values:
+      - CONNECTED
+      - NOT_CONNECTED
+    required: false
+
+  cooling_connection:
+    type: enum
+    description: "냉각 연결 상태"
+    values:
+      - CONNECTED
+      - NOT_CONNECTED
+    required: false
+
+# 제약 조건
+constraints:
+  - type: referential
+    description: "Module의 pack_id는 Pack의 pack_id를 참조해야 함"
+    rule: "Module.pack_id = Pack.pack_id"
+
+  - type: unique
+    description: "동일 Pack 내에서 position은 유일해야 함"
+    rule: "UNIQUE(pack_id, position)"
+
+# 인덱스
+indexes:
+  - fields: [pack_id, position]
+    unique: true

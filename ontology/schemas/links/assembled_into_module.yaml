@@ -1,0 +1,65 @@
+# Cell -> Module 관계
+# Cell이 Module로 조립되는 관계
+
+linkType: ASSEMBLED_INTO
+version: "1.0.0"
+description: "Cell이 Module로 조립되는 관계 (N:1)"
+
+# 관계 방향
+source:
+  objectType: Cell
+  cardinality: "N"
+
+target:
+  objectType: Module
+  cardinality: "1"
+
+# 관계 속성
+properties:
+  position:
+    type: integer
+    description: "Module 내 Cell 위치 (1부터 시작)"
+    required: true
+    min: 1
+
+  assembly_time:
+    type: datetime
+    description: "조립 시간"
+    required: false
+
+  assembly_equipment_id:
+    type: string
+    description: "조립 설비 ID"
+    required: false
+
+  connection_type:
+    type: enum
+    description: "연결 방식"
+    values:
+      - SERIES     # 직렬
+      - PARALLEL   # 병렬
+    required: false
+
+  welding_quality:
+    type: enum
+    description: "용접 품질"
+    values:
+      - GOOD
+      - MARGINAL
+      - NG
+    required: false
+
+# 제약 조건
+constraints:
+  - type: referential
+    description: "Cell의 module_id는 Module의 module_id를 참조해야 함"
+    rule: "Cell.module_id = Module.module_id"
+
+  - type: unique
+    description: "동일 Module 내에서 position은 유일해야 함"
+    rule: "UNIQUE(module_id, position)"
+
+# 인덱스
+indexes:
+  - fields: [module_id, position]
+    unique: true

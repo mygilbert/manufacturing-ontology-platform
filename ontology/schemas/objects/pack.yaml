@@ -1,0 +1,373 @@
+# Pack Object Type
+# 배터리 팩을 나타내는 온톨로지 객체
+
+objectType: Pack
+version: "1.0.0"
+description: "배터리 팩 단위 (여러 Module을 조립한 최종 제품)"
+
+# 기본 키
+primaryKey: pack_id
+
+# 속성 정의
+properties:
+  pack_id:
+    type: string
+    description: "Pack 고유 식별자"
+    required: true
+    indexed: true
+    example: "PACK-20231201-001"
+
+  pack_model:
+    type: string
+    description: "팩 모델명"
+    required: true
+    example: "EV-PACK-80kWh"
+
+  customer:
+    type: string
+    description: "고객사"
+    required: true
+    indexed: true
+    example: "OEM-A"
+
+  vehicle_model:
+    type: string
+    description: "적용 차종"
+    required: false
+    example: "EV-MODEL-X"
+
+  status:
+    type: enum
+    description: "Pack 상태"
+    required: true
+    values:
+      - ASSEMBLY      # 조립 중
+      - HARNESS       # 배선 중
+      - COVER         # 커버 조립 중
+      - EOL_TEST      # EOL 테스트 중
+      - GOOD          # 양품
+      - NG            # 불량
+      - SHIPPED       # 출하됨
+      - HOLD          # 보류
+      - SCRAPPED      # 폐기
+    default: "ASSEMBLY"
+
+  # 구성 정보
+  module_count:
+    type: integer
+    description: "팩 내 Module 수"
+    required: true
+    example: 8
+
+  total_cell_count:
+    type: integer
+    description: "총 Cell 수"
+    required: false
+    example: 96
+
+  configuration:
+    type: string
+    description: "구성 (예: 96S1P)"
+    required: false
+    example: "96S1P"
+
+  # 전기적 특성
+  nominal_voltage_v:
+    type: float
+    description: "공칭 전압 (V)"
+    required: false
+    unit: "V"
+    example: 350.0
+
+  max_voltage_v:
+    type: float
+    description: "최대 전압 (V)"
+    required: false
+    unit: "V"
+    example: 403.0
+
+  min_voltage_v:
+    type: float
+    description: "최소 전압 (V)"
+    required: false
+    unit: "V"
+    example: 280.0
+
+  nominal_capacity_ah:
+    type: float
+    description: "공칭 용량 (Ah)"
+    required: false
+    unit: "Ah"
+    example: 60.0
+
+  energy_kwh:
+    type: float
+    description: "에너지 (kWh)"
+    required: false
+    unit: "kWh"
+    example: 80.0
+
+  max_discharge_power_kw:
+    type: float
+    description: "최대 방전 출력 (kW)"
+    required: false
+    unit: "kW"
+
+  max_charge_power_kw:
+    type: float
+    description: "최대 충전 출력 (kW)"
+    required: false
+    unit: "kW"
+
+  resistance_mohm:
+    type: float
+    description: "내부 저항 (mΩ)"
+    required: false
+    unit: "mΩ"
+
+  # 물리적 특성
+  weight_kg:
+    type: float
+    description: "중량 (kg)"
+    required: false
+    unit: "kg"
+    example: 450.0
+
+  dimensions:
+    type: object
+    description: "외형 치수"
+    required: false
+    properties:
+      length_mm:
+        type: float
+        unit: "mm"
+      width_mm:
+        type: float
+        unit: "mm"
+      height_mm:
+        type: float
+        unit: "mm"
+
+  # 품질/테스트 정보
+  grade:
+    type: enum
+    description: "품질 등급"
+    required: false
+    values:
+      - A
+      - B
+      - C
+      - NG
+
+  eol_result:
+    type: enum
+    description: "EOL 테스트 결과"
+    required: false
+    values:
+      - PASS
+      - FAIL
+      - PENDING
+
+  hip_result:
+    type: enum
+    description: "HIP (High Voltage Insulation) 테스트 결과"
+    required: false
+    values:
+      - PASS
+      - FAIL
+
+  leak_test_result:
+    type: enum
+    description: "기밀 테스트 결과"
+    required: false
+    values:
+      - PASS
+      - FAIL
+
+  defect_code:
+    type: string
+    description: "불량 코드"
+    required: false
+
+  defect_description:
+    type: string
+    description: "불량 상세"
+    required: false
+
+  # BMS/시스템 정보
+  bms_master_version:
+    type: string
+    description: "마스터 BMS 버전"
+    required: false
+
+  bms_master_serial:
+    type: string
+    description: "마스터 BMS 시리얼"
+    required: false
+
+  software_version:
+    type: string
+    description: "팩 소프트웨어 버전"
+    required: false
+
+  # 시간 정보
+  assembly_start:
+    type: datetime
+    description: "조립 시작 시간"
+    required: true
+
+  assembly_end:
+    type: datetime
+    description: "조립 완료 시간"
+    required: false
+
+  eol_test_time:
+    type: datetime
+    description: "EOL 테스트 시간"
+    required: false
+
+  ship_time:
+    type: datetime
+    description: "출하 시간"
+    required: false
+
+  # 출하 정보
+  ship_destination:
+    type: string
+    description: "출하 목적지"
+    required: false
+
+  order_id:
+    type: string
+    description: "주문 번호"
+    required: false
+    indexed: true
+
+  line_id:
+    type: string
+    description: "생산 라인 ID"
+    required: true
+    example: "PACK-LINE-01"
+
+# 시계열 데이터
+timeseries:
+  enabled: true
+  parameters:
+    - name: pack_voltage
+      unit: "V"
+      description: "팩 전압"
+    - name: pack_current
+      unit: "A"
+      description: "팩 전류"
+    - name: pack_soc
+      unit: "%"
+      description: "SOC"
+    - name: pack_soh
+      unit: "%"
+      description: "SOH"
+    - name: max_cell_temp
+      unit: "C"
+      description: "최고 셀 온도"
+    - name: min_cell_temp
+      unit: "C"
+      description: "최저 셀 온도"
+    - name: coolant_inlet_temp
+      unit: "C"
+      description: "냉각수 입구 온도"
+    - name: coolant_outlet_temp
+      unit: "C"
+      description: "냉각수 출구 온도"
+    - name: insulation_resistance
+      unit: "MΩ"
+      description: "절연 저항"
+
+# 관계 정의
+outgoingLinks:
+  - linkType: SHIPPED_TO
+    targetObject: Customer
+    description: "출하된 고객"
+
+  - linkType: PROCESSED_AT
+    targetObject: Equipment
+    description: "처리된 설비"
+
+  - linkType: BELONGS_TO_ORDER
+    targetObject: Order
+    description: "소속된 주문"
+
+incomingLinks:
+  - linkType: ASSEMBLED_INTO
+    sourceObject: Module
+    description: "이 Pack에 조립된 Module"
+    cardinality: "1:N"
+
+# 집계/파생 속성
+derivedProperties:
+  actual_module_count:
+    type: integer
+    description: "실제 조립된 Module 수"
+    aggregation:
+      from: Module
+      filter: "pack_id = pack_id"
+      function: "COUNT"
+
+  avg_module_energy:
+    type: float
+    description: "평균 Module 에너지"
+    aggregation:
+      from: Module
+      filter: "pack_id = pack_id"
+      function: "AVG(energy_kwh)"
+
+  total_energy:
+    type: float
+    description: "총 에너지 (kWh)"
+    aggregation:
+      from: Module
+      filter: "pack_id = pack_id"
+      function: "SUM(energy_kwh)"
+
+  assembly_duration:
+    type: duration
+    description: "조립 소요 시간"
+    formula: "assembly_end - assembly_start"
+
+  cycle_time:
+    type: duration
+    description: "총 생산 시간 (조립~출하)"
+    formula: "ship_time - assembly_start"
+
+# 인덱스
+indexes:
+  - fields: [pack_id]
+    unique: true
+  - fields: [customer, status]
+    unique: false
+  - fields: [order_id]
+    unique: false
+  - fields: [assembly_start]
+    unique: false
+  - fields: [ship_time]
+    unique: false
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_PACK_MASTER"
+    keyColumn: "PACK_ID"
+    columnMapping:
+      pack_id: "PACK_ID"
+      pack_model: "MODEL_NAME"
+      customer: "CUSTOMER_CODE"
+      vehicle_model: "VEHICLE_MODEL"
+      status: "PACK_STATUS"
+      module_count: "MODULE_CNT"
+      nominal_voltage_v: "NOM_VOLTAGE"
+      energy_kwh: "ENERGY_KWH"
+      grade: "GRADE"
+      eol_result: "EOL_RESULT"
+      assembly_start: "START_TIME"
+      assembly_end: "END_TIME"
+      ship_time: "SHIP_TIME"
+      order_id: "ORDER_ID"
+      line_id: "LINE_ID"

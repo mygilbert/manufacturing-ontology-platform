@@ -1,0 +1,247 @@
+# Cell Object Type
+# 배터리 셀을 나타내는 온톨로지 객체
+
+objectType: Cell
+version: "1.0.0"
+description: "배터리 셀 단위 (Roll에서 절단되어 생성)"
+
+# 기본 키
+primaryKey: cell_id
+
+# 속성 정의
+properties:
+  cell_id:
+    type: string
+    description: "Cell 고유 식별자"
+    required: true
+    indexed: true
+    example: "C20231201001-0001"
+
+  source_roll_id:
+    type: string
+    description: "원본 Roll ID"
+    required: true
+    indexed: true
+    example: "R20231201001"
+
+  cell_type:
+    type: enum
+    description: "셀 유형"
+    required: true
+    values:
+      - POUCH       # 파우치형
+      - CYLINDRICAL # 원통형
+      - PRISMATIC   # 각형
+    example: "POUCH"
+
+  cell_model:
+    type: string
+    description: "셀 모델명"
+    required: true
+    example: "NCM811-60Ah"
+
+  status:
+    type: enum
+    description: "Cell 상태"
+    required: true
+    values:
+      - STACKING        # 스태킹 중
+      - WELDING         # 용접 중
+      - ELECTROLYTE     # 전해액 주입 중
+      - FORMATION       # 화성 중
+      - AGING           # 에이징 중
+      - GRADING         # 등급 분류 중
+      - GOOD            # 양품
+      - NG              # 불량
+      - HOLD            # 보류
+      - SCRAPPED        # 폐기
+    default: "STACKING"
+
+  position_in_roll:
+    type: integer
+    description: "Roll 내 위치 (순번)"
+    required: false
+    example: 1
+
+  # 물리적 특성
+  capacity_ah:
+    type: float
+    description: "용량 (Ah)"
+    required: false
+    unit: "Ah"
+    example: 60.5
+
+  voltage_v:
+    type: float
+    description: "전압 (V)"
+    required: false
+    unit: "V"
+    example: 3.65
+
+  resistance_mohm:
+    type: float
+    description: "내부 저항 (mΩ)"
+    required: false
+    unit: "mΩ"
+    example: 1.2
+
+  weight_g:
+    type: float
+    description: "중량 (g)"
+    required: false
+    unit: "g"
+    example: 850.0
+
+  thickness_mm:
+    type: float
+    description: "두께 (mm)"
+    required: false
+    unit: "mm"
+
+  # 품질 등급
+  grade:
+    type: enum
+    description: "품질 등급"
+    required: false
+    values:
+      - A    # 최상
+      - B    # 양호
+      - C    # 보통
+      - NG   # 불량
+    example: "A"
+
+  # 불량 정보
+  defect_code:
+    type: string
+    description: "불량 코드 (NG인 경우)"
+    required: false
+    example: "DEF-WELD-001"
+
+  defect_description:
+    type: string
+    description: "불량 상세 내용"
+    required: false
+
+  # 시간 정보
+  created_time:
+    type: datetime
+    description: "Cell 생성 시간 (절단 시점)"
+    required: true
+
+  formation_start:
+    type: datetime
+    description: "화성 시작 시간"
+    required: false
+
+  formation_end:
+    type: datetime
+    description: "화성 완료 시간"
+    required: false
+
+  grading_time:
+    type: datetime
+    description: "등급 분류 시간"
+    required: false
+
+  # 추적 정보
+  module_id:
+    type: string
+    description: "조립된 Module ID"
+    required: false
+    indexed: true
+    example: "MOD-20231201-001"
+
+  position_in_module:
+    type: integer
+    description: "Module 내 위치"
+    required: false
+
+  line_id:
+    type: string
+    description: "생산 라인 ID"
+    required: true
+    example: "CELL-LINE-01"
+
+# 시계열 데이터 (화성/에이징 데이터)
+timeseries:
+  enabled: true
+  parameters:
+    - name: formation_voltage
+      unit: "V"
+      description: "화성 전압"
+    - name: formation_current
+      unit: "A"
+      description: "화성 전류"
+    - name: formation_temp
+      unit: "C"
+      description: "화성 온도"
+    - name: aging_voltage
+      unit: "V"
+      description: "에이징 전압"
+    - name: soc
+      unit: "%"
+      description: "충전 상태"
+    - name: dcir
+      unit: "mΩ"
+      description: "DC 내부저항"
+
+# 관계 정의
+outgoingLinks:
+  - linkType: ASSEMBLED_INTO
+    targetObject: Module
+    description: "조립된 Module"
+    cardinality: "N:1"
+
+  - linkType: PROCESSED_AT
+    targetObject: Equipment
+    description: "처리된 설비"
+
+incomingLinks:
+  - linkType: PRODUCES
+    sourceObject: Roll
+    description: "이 Cell을 생산한 Roll"
+    cardinality: "N:1"
+
+# 집계/파생 속성
+derivedProperties:
+  formation_duration:
+    type: duration
+    description: "화성 소요 시간"
+    formula: "formation_end - formation_start"
+
+  energy_wh:
+    type: float
+    description: "에너지 (Wh)"
+    formula: "capacity_ah * voltage_v"
+
+# 인덱스
+indexes:
+  - fields: [cell_id]
+    unique: true
+  - fields: [source_roll_id]
+    unique: false
+  - fields: [module_id]
+    unique: false
+  - fields: [status, grade]
+    unique: false
+  - fields: [created_time]
+    unique: false
+
+# 데이터 소스 매핑
+sourceMapping:
+  mes:
+    table: "MES_CELL_MASTER"
+    keyColumn: "CELL_ID"
+    columnMapping:
+      cell_id: "CELL_ID"
+      source_roll_id: "ROLL_ID"
+      cell_type: "CELL_TYPE"
+      cell_model: "MODEL_NAME"
+      status: "CELL_STATUS"
+      capacity_ah: "CAPACITY"
+      voltage_v: "VOLTAGE"
+      resistance_mohm: "RESISTANCE"
+      grade: "GRADE"
+      module_id: "MODULE_ID"
+      created_time: "CREATE_TIME"
+      line_id: "LINE_ID"

@@ -1,0 +1,44 @@
+# Roll -> Cell 관계
+# Roll에서 Cell이 생산되는 관계
+
+linkType: PRODUCES
+version: "1.0.0"
+description: "Roll에서 Cell을 생산하는 관계 (1:N)"
+
+# 관계 방향
+source:
+  objectType: Roll
+  cardinality: "1"
+
+target:
+  objectType: Cell
+  cardinality: "N"
+
+# 관계 속성
+properties:
+  cut_position_m:
+    type: float
+    description: "롤 내 절단 위치 (m)"
+    required: false
+    unit: "m"
+
+  cut_time:
+    type: datetime
+    description: "절단 시간"
+    required: false
+
+  cut_equipment_id:
+    type: string
+    description: "절단 설비 ID"
+    required: false
+
+# 제약 조건
+constraints:
+  - type: referential
+    description: "Cell의 source_roll_id는 Roll의 roll_id를 참조해야 함"
+    rule: "Cell.source_roll_id = Roll.roll_id"
+
+# 인덱스
+indexes:
+  - fields: [source_roll_id, cut_position_m]
+    unique: false
