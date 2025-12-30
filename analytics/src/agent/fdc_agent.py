@@ -613,6 +613,30 @@ class FDCAnalysisAgent:
                     "params": {"event_id": "ALARM_TRIGGER", "pattern_type": "all"}
                 })
 
+        # 배터리 제조 / 품질 관련 키워드
+        if any(kw in query_lower for kw in [
+            'cell', '셀', 'capacity', '용량', 'defect', '불량', 'quality', '품질',
+            'roll', '압연', 'coating', '코팅', 'drying', '건조', 'electrode', '전극',
+            'battery', '배터리', 'cathode', '양극', 'anode', '음극', 'active material', '활물질'
+        ]):
+            # 품질/불량 관련 - 근본원인 분석 + 온톨로지 검색
+            if not any(t["tool"] == "root_cause_analysis" for t in tools_to_call):
+                tools_to_call.append({
+                    "tool": "root_cause_analysis",
+                    "params": {"target_param": "CELL_CAPACITY", "depth": 3}
+                })
+            if not any(t["tool"] == "ontology_search" for t in tools_to_call):
+                tools_to_call.append({
+                    "tool": "ontology_search",
+                    "params": {"query_type": "relationship", "include_related": True}
+                })
+            # 시계열 분석 추가
+            if not any(t["tool"] == "time_series_analysis" for t in tools_to_call):
+                tools_to_call.append({
+                    "tool": "time_series_analysis",
+                    "params": {"sensor_id": "QUALITY_001", "analysis_type": "all"}
+                })
+
         # 기본 도구 (아무것도 매치되지 않은 경우)
         if not tools_to_call:
             tools_to_call.append({

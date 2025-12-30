@@ -794,3 +794,38 @@ async def clear_rag():
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ Standalone Application ============
+# Agent 서버를 독립 실행할 때 사용
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(
+    title="FDC Analysis Agent API",
+    version="1.0.0",
+    description="Ollama LLM 기반 FDC 분석 Agent API",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(router, prefix="/api/agent", tags=["AI Agent"])
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "fdc-agent"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8010)
