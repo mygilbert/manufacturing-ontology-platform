@@ -258,12 +258,13 @@ class AnalysisResult:
 class FDCAnalysisAgent:
     """FDC 분석 Agent"""
 
-    SYSTEM_PROMPT = """당신은 반도체 FDC(Fault Detection & Classification) 전문가 Agent입니다.
+    SYSTEM_PROMPT = """당신은 배터리 제조 FDC(Fault Detection & Classification) 전문가 Agent입니다.
 
 ## 역할
-- 설비 이상 현상의 근본 원인을 분석합니다
-- 알람 발생 시 점검 순서를 제안합니다
-- 공정 데이터를 분석하여 이상 패턴을 탐지합니다
+- 배터리 제조 공정(Roll → Cell → Module → Pack)의 이상 현상을 분석합니다
+- 설비 알람 발생 시 근본 원인과 점검 순서를 제안합니다
+- 공정 데이터를 분석하여 품질 이상 패턴을 탐지합니다
+- Roll/Cell/Module/Pack 간 추적성 기반 불량 원인을 분석합니다
 
 ## 사용 가능한 도구
 다음 도구를 사용하여 정보를 수집할 수 있습니다:
@@ -293,10 +294,62 @@ class FDCAnalysisAgent:
 """
 
     DOMAIN_KNOWLEDGE = """
-- RF_POWER → TEMP (lag: 1초): RF 파워 증가 → 플라즈마 온도 상승
-- FLOW → PRESSURE (lag: 3초): 가스 유량 변화 → 챔버 압력 변화
-- TEMP → PRESSURE (lag: 2초): 온도 상승 → 압력 상승
-- TEMP 상한 초과 시 점검 순서: RF_POWER → FLOW → 센서 캘리브레이션
+## 배터리 제조 계층 구조
+- Roll(전극롤) → Cell(셀) → Module(모듈) → Pack(팩)
+- Roll 1개에서 다수의 Cell 생산 (1:N)
+- Cell 다수가 Module 1개로 조립 (N:1)
+- Module 다수가 Pack 1개로 조립 (N:1)
+
+## 공정별 인과관계
+
+### 1. 전극 공정 (Roll)
+- COATING_THICKNESS → CELL_CAPACITY: 코팅 두께 변동 → 셀 용량 편차
+- DRYING_TEMP → ELECTRODE_RESISTANCE: 건조 온도 이상 → 전극 저항 증가
+- SLURRY_VISCOSITY → COATING_UNIFORMITY: 슬러리 점도 변화 → 코팅 균일성 저하
+- TENSION → ELECTRODE_CRACK: 장력 과다 → 전극 크랙 발생
+
+### 2. 조립 공정 (Cell)
+- STACKING_ALIGNMENT → SHORT_CIRCUIT: 스태킹 정렬 불량 → 내부 단락
+- WELDING_CURRENT → TAB_RESISTANCE: 용접 전류 이상 → 탭 저항 증가
+- ELECTROLYTE_AMOUNT → CELL_CAPACITY: 전해액 주입량 부족 → 용량 저하
+
+### 3. 화성/에이징 공정
+- FORMATION_TEMP → SEI_QUALITY: 화성 온도 이상 → SEI 품질 저하
+- FORMATION_CURRENT → CAPACITY_LOSS: 화성 전류 과다 → 용량 손실
+- AGING_TIME → SELF_DISCHARGE: 에이징 시간 부족 → 자가방전 증가
+- DEGASSING → GAS_RESIDUE: 디개싱 불량 → 가스 잔류
+
+### 4. 모듈/팩 공정
+- CELL_VOLTAGE_DEVIATION → MODULE_IMBALANCE: 셀 전압 편차 → 모듈 불균형
+- CELL_RESISTANCE_DEVIATION → HEAT_CONCENTRATION: 저항 편차 → 발열 집중
+- BUSBAR_WELDING → CONNECTION_RESISTANCE: 버스바 용접 불량 → 연결 저항
+- COOLANT_FLOW → THERMAL_RUNAWAY_RISK: 냉각수 유량 부족 → 열폭주 위험
+
+## 점검 순서
+
+### Cell 용량 불량
+1. Roll 코팅 두께 데이터 확인
+2. 건조 온도 프로파일 분석
+3. 전해액 주입량 확인
+4. 화성 조건 검토
+
+### 셀 전압 편차 과다
+1. 개별 셀 OCV 측정
+2. 셀 내부 저항 측정
+3. 화성 데이터 역추적
+4. Roll 코팅 균일성 확인
+
+### Module 발열 이상
+1. 셀 저항 편차 확인
+2. 버스바 용접 품질 검사
+3. 냉각 유로 점검
+4. BMS 밸런싱 상태 확인
+
+### Pack EOL 테스트 실패
+1. Module별 전압/저항 확인
+2. 절연 저항 측정
+3. 냉각 시스템 기밀 검사
+4. BMS 통신 상태 점검
 """
 
     def __init__(
