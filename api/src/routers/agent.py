@@ -540,3 +540,257 @@ async def update_domain_knowledge_only(request: dict):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ RAG Knowledge Base ============
+
+class RAGDocumentRequest(BaseModel):
+    """RAG 문서 추가 요청"""
+    content: str = Field(..., description="문서 내용")
+    metadata: dict = Field(default_factory=dict, description="메타데이터")
+    doc_id: Optional[str] = Field(None, description="문서 ID (미지정시 자동 생성)")
+
+
+class RAGSearchRequest(BaseModel):
+    """RAG 검색 요청"""
+    query: str = Field(..., description="검색 쿼리")
+    n_results: int = Field(default=5, ge=1, le=20, description="반환할 결과 수")
+    doc_types: Optional[List[str]] = Field(None, description="필터링할 문서 타입")
+
+
+@router.get("/rag/status")
+async def get_rag_status():
+    """
+    RAG 시스템 상태 조회
+
+    ChromaDB 지식베이스의 상태와 통계를 반환합니다.
+    """
+    try:
+        agent = get_agent()
+
+        if not agent.has_rag():
+            return {
+                "available": False,
+                "message": "RAG 시스템이 초기화되지 않았습니다.",
+                "stats": {}
+            }
+
+        stats = agent.rag_manager.get_stats()
+
+        return {
+            "available": True,
+            "message": "RAG 시스템이 정상 작동 중입니다.",
+            "stats": stats
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/rag/documents")
+async def add_rag_document(request: RAGDocumentRequest):
+    """
+    지식베이스에 문서 추가
+
+    새 문서를 ChromaDB에 추가합니다.
+    """
+    try:
+        agent = get_agent()
+
+        if not agent.has_rag():
+            raise HTTPException(status_code=503, detail="RAG 시스템이 초기화되지 않았습니다.")
+
+        doc_id = agent.rag_manager.add_document(
+            content=request.content,
+            metadata=request.metadata,
+            doc_id=request.doc_id
+        )
+
+        return {
+            "success": True,
+            "doc_id": doc_id,
+            "message": "문서가 추가되었습니다."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/rag/documents")
+async def list_rag_documents(limit: int = 100, offset: int = 0):
+    """
+    지식베이스 문서 목록
+
+    저장된 문서 목록을 반환합니다.
+    """
+    try:
+        agent = get_agent()
+
+        if not agent.has_rag():
+            return {
+                "documents": [],
+                "total": 0,
+                "message": "RAG 시스템이 초기화되지 않았습니다."
+            }
+
+        docs = agent.rag_manager.store.list_documents(limit=limit, offset=offset)
+
+        return {
+            "documents": [
+                {
+                    "id": doc.id,
+                    "content_preview": doc.content[:200] + "..." if len(doc.content) > 200 else doc.content,
+                    "metadata": doc.metadata
+                }
+                for doc in docs
+            ],
+            "total": agent.rag_manager.store.count(),
+            "limit": limit,
+            "offset": offset
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/rag/documents/{doc_id}")
+async def delete_rag_document(doc_id: str):
+    """
+    문서 삭제
+
+    특정 문서를 지식베이스에서 삭제합니다.
+    """
+    try:
+        agent = get_agent()
+
+        if not agent.has_rag():
+            raise HTTPException(status_code=503, detail="RAG 시스템이 초기화되지 않았습니다.")
+
+        deleted = agent.rag_manager.store.delete_documents([doc_id])
+
+        if deleted > 0:
+            return {
+                "success": True,
+                "message": f"문서 '{doc_id}'가 삭제되었습니다."
+            }
+        else:
+            raise HTTPException(status_code=404, detail=f"문서 '{doc_id}'를 찾을 수 없습니다.")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/rag/search")
+async def search_rag(request: RAGSearchRequest):
+    """
+    지식베이스 검색
+
+    쿼리에 관련된 문서를 시맨틱 검색합니다.
+    """
+    try:
+        agent = get_agent()
+
+        if not agent.has_rag():
+            raise HTTPException(status_code=503, detail="RAG 시스템이 초기화되지 않았습니다.")
+
+        result = agent.rag_manager.search(
+            query=request.query,
+            n_results=request.n_results
+        )
+
+        return {
+            "query": request.query,
+            "context": result.get("context", ""),
+            "sources": result.get("sources", []),
+            "n_results": result.get("n_results", 0)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/rag/initialize")
+async def initialize_rag(
+    clear_existing: bool = False,
+    load_expert_knowledge: bool = True,
+    load_discovered_relationships: bool = True,
+    load_domain_knowledge: bool = True
+):
+    """
+    RAG 지식베이스 초기화
+
+    기본 지식 소스를 ChromaDB에 로드합니다.
+
+    - expert_knowledge.json: 전문가 인과관계
+    - discovered_relationships.json: 발견된 관계
+    - DOMAIN_KNOWLEDGE: 배터리 제조 도메인 지식
+    """
+    try:
+        agent = get_agent()
+
+        if not agent.rag_manager:
+            raise HTTPException(status_code=503, detail="RAG 시스템이 사용 불가능합니다. chromadb 설치를 확인하세요.")
+
+        # 기본 경로
+        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'analytics'))
+
+        expert_path = os.path.join(base_path, 'results', 'expert_knowledge.json') if load_expert_knowledge else None
+        discovered_path = os.path.join(base_path, 'results', 'discovered_relationships.json') if load_discovered_relationships else None
+
+        # 도메인 지식 텍스트
+        domain_text = None
+        if load_domain_knowledge:
+            from agent.fdc_agent import FDCAnalysisAgent
+            domain_text = FDCAnalysisAgent.DOMAIN_KNOWLEDGE
+
+        stats = agent.rag_manager.initialize(
+            expert_knowledge_path=expert_path if expert_path and os.path.exists(expert_path) else None,
+            discovered_relationships_path=discovered_path if discovered_path and os.path.exists(discovered_path) else None,
+            domain_knowledge_text=domain_text,
+            clear_existing=clear_existing
+        )
+
+        return {
+            "success": True,
+            "message": "RAG 지식베이스가 초기화되었습니다.",
+            "documents_loaded": stats,
+            "total_documents": agent.rag_manager.store.count()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/rag/clear")
+async def clear_rag():
+    """
+    RAG 지식베이스 초기화 (전체 삭제)
+
+    모든 문서를 삭제합니다.
+    """
+    try:
+        agent = get_agent()
+
+        if not agent.has_rag():
+            raise HTTPException(status_code=503, detail="RAG 시스템이 초기화되지 않았습니다.")
+
+        agent.rag_manager.store.clear()
+
+        return {
+            "success": True,
+            "message": "RAG 지식베이스가 초기화되었습니다.",
+            "total_documents": 0
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

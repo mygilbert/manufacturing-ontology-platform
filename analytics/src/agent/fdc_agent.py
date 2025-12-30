@@ -18,6 +18,7 @@ import os
 import sys
 import json
 import re
+import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -27,6 +28,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from .ollama_client import OllamaClient, ChatMessage
 from .tools import ToolRegistry, ToolResult, create_default_registry
+
+logger = logging.getLogger(__name__)
 
 # 중국어/일본어 -> 한국어 변환 맵
 CHINESE_TO_KOREAN = {
@@ -241,6 +244,10 @@ class AgentConfig:
     verbose: bool = True
     custom_system_prompt: Optional[str] = None
     custom_domain_knowledge: Optional[str] = None
+    # RAG 설정
+    use_rag: bool = True
+    rag_persist_dir: str = "./chroma_db"
+    rag_n_results: int = 5
 
 
 @dataclass
@@ -367,6 +374,41 @@ class FDCAnalysisAgent:
         self._custom_system_prompt: Optional[str] = self.config.custom_system_prompt
         self._custom_domain_knowledge: Optional[str] = self.config.custom_domain_knowledge
 
+        # RAG 초기화
+        self._rag_manager = None
+        if self.config.use_rag:
+            self._init_rag()
+
+    def _init_rag(self):
+        """RAG 시스템 초기화 (Lazy Loading)"""
+        try:
+            # 절대 import 시도
+            try:
+                from rag import RAGManager
+            except ImportError:
+                from ..rag import RAGManager
+
+            self._rag_manager = RAGManager(
+                persist_dir=self.config.rag_persist_dir,
+                collection_name="fdc_knowledge"
+            )
+            logger.info(f"RAG initialized: {self._rag_manager.get_stats()}")
+        except ImportError as e:
+            logger.warning(f"RAG not available (missing dependencies): {e}")
+            self._rag_manager = None
+        except Exception as e:
+            logger.warning(f"RAG initialization failed: {e}")
+            self._rag_manager = None
+
+    @property
+    def rag_manager(self):
+        """RAG 매니저 접근"""
+        return self._rag_manager
+
+    def has_rag(self) -> bool:
+        """RAG 사용 가능 여부"""
+        return self._rag_manager is not None and self._rag_manager.is_initialized
+
     def set_system_prompt(self, prompt: str) -> None:
         """시스템 프롬프트 동적 변경"""
         self._custom_system_prompt = prompt
@@ -389,8 +431,13 @@ class FDCAnalysisAgent:
         self._custom_system_prompt = None
         self._custom_domain_knowledge = None
 
-    def _build_system_prompt(self) -> str:
-        """시스템 프롬프트 생성"""
+    def _build_system_prompt(self, query: Optional[str] = None) -> str:
+        """
+        시스템 프롬프트 생성
+
+        Args:
+            query: 사용자 질문 (RAG 컨텍스트 검색용)
+        """
         tool_descriptions = ""
         for tool_def in self.tools.get_all_definitions():
             tool_descriptions += f"\n### {tool_def['name']}\n"
@@ -400,6 +447,17 @@ class FDCAnalysisAgent:
         # 커스텀 프롬프트 사용 여부 확인
         base_prompt = self._custom_system_prompt or self.SYSTEM_PROMPT
         domain_knowledge = self._custom_domain_knowledge or self.DOMAIN_KNOWLEDGE
+
+        # RAG 컨텍스트 검색 및 추가
+        if query and self._rag_manager and self._rag_manager.is_initialized:
+            try:
+                rag_context = self._rag_manager.get_context_for_query(query)
+                if rag_context:
+                    domain_knowledge += f"\n\n## 검색된 관련 지식 (RAG)\n{rag_context}"
+                    if self.config.verbose:
+                        print(f"[RAG] Retrieved context ({len(rag_context)} chars)")
+            except Exception as e:
+                logger.warning(f"RAG retrieval failed: {e}")
 
         return base_prompt.format(
             tool_descriptions=tool_descriptions,
@@ -495,9 +553,9 @@ class FDCAnalysisAgent:
             )
 
         try:
-            # 대화 초기화
+            # 대화 초기화 (RAG 컨텍스트 포함)
             messages = [
-                ChatMessage(role="system", content=self._build_system_prompt()),
+                ChatMessage(role="system", content=self._build_system_prompt(query=query)),
                 ChatMessage(role="user", content=query)
             ]
 
