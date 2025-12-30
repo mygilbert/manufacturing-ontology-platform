@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from .chroma_store import Document
+from .simple_store import Document
 
 logger = logging.getLogger(__name__)
 

@@ -12,7 +12,10 @@ import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
-from .chroma_store import ChromaStore, SearchResult
+from .simple_store import SimpleVectorStore, SearchResult
+
+# 호환성 별칭
+ChromaStore = SimpleVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -303,10 +306,10 @@ class RAGManager:
         persist_dir: str = "./chroma_db",
         collection_name: str = "fdc_knowledge"
     ):
-        self.store = ChromaStore(
-            persist_dir=persist_dir,
-            collection_name=collection_name
-        )
+        # SimpleVectorStore는 JSON 파일 경로 사용
+        import os
+        persist_path = os.path.join(persist_dir, f"{collection_name}.json")
+        self.store = SimpleVectorStore(persist_path=persist_path)
         self.retriever = RAGRetriever(self.store)
         self._initialized = False
 
@@ -358,7 +361,7 @@ class RAGManager:
 
     def add_document(self, content: str, metadata: Dict[str, Any], doc_id: Optional[str] = None) -> str:
         """단일 문서 추가"""
-        from .chroma_store import Document
+        from .simple_store import Document
         import uuid
 
         doc_id = doc_id or f"manual_{uuid.uuid4().hex[:8]}"

@@ -17,6 +17,43 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
+class OllamaEmbeddingFunction:
+    """Ollama API를 사용한 임베딩 함수"""
+
+    def __init__(self, url: str = "http://localhost:11434/api/embed", model_name: str = "nomic-embed-text"):
+        self.url = url
+        self.model_name = model_name
+
+    def name(self) -> str:
+        """ChromaDB에서 요구하는 임베딩 함수 이름"""
+        return f"ollama-{self.model_name}"
+
+    def __call__(self, input: List[str]) -> List[List[float]]:
+        """텍스트 리스트를 임베딩 벡터로 변환"""
+        import requests
+
+        embeddings = []
+        for text in input:
+            try:
+                response = requests.post(
+                    self.url,
+                    json={"model": self.model_name, "input": text},
+                    timeout=30
+                )
+                response.raise_for_status()
+                data = response.json()
+                # Ollama API returns {"embeddings": [[...]]} for single input
+                if "embeddings" in data and len(data["embeddings"]) > 0:
+                    embeddings.append(data["embeddings"][0])
+                else:
+                    raise ValueError(f"Unexpected response format: {data}")
+            except Exception as e:
+                logger.error(f"Ollama embedding failed for text: {text[:50]}... Error: {e}")
+                raise
+
+        return embeddings
+
+
 @dataclass
 class Document:
     """문서 데이터 클래스"""
@@ -77,10 +114,24 @@ class ChromaStore:
                 os.makedirs(self.persist_dir, exist_ok=True)
                 self._client = chromadb.PersistentClient(path=self.persist_dir)
 
-                # 임베딩 함수 설정
-                self._embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-                    model_name=self.embedding_model
-                )
+                # 임베딩 함수 설정 - Ollama 사용 (Python 3.13 onnxruntime 호환성 이슈)
+                ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+                ollama_model = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+
+                try:
+                    self._embedding_function = OllamaEmbeddingFunction(
+                        url=f"{ollama_url}/api/embed",
+                        model_name=ollama_model
+                    )
+                    logger.info(f"Using Ollama embedding: {ollama_model}")
+                except Exception as e:
+                    logger.warning(f"Ollama embedding failed ({e}), trying default")
+                    try:
+                        self._embedding_function = embedding_functions.DefaultEmbeddingFunction()
+                        logger.info("Using ChromaDB default embedding")
+                    except Exception as e2:
+                        logger.error(f"Default embedding also failed: {e2}")
+                        raise
 
                 # 컬렉션 생성 또는 가져오기
                 self._collection = self._client.get_or_create_collection(
