@@ -1,9 +1,28 @@
 # Equipment Object Type
 # 설비/장비를 나타내는 온톨로지 객체
+#
+# 참조 표준
+#   - SEMI E120 (CEM): 설비 구조 객체 모델. 설비는 Module / Subsystem / IODevice로
+#     분해된다. 챔버는 별도 객체(Chamber)로 분리하고 HAS_MODULE 관계로 연결한다.
+#   - SEMI E10 / E58: 설비 상태 모델. status 속성이 이 6상태를 따른다.
+#   - ISA-95 / IEC 62264: Equipment는 Work Unit 계층에 대응한다.
+#   자세한 내용은 docs/06_표준_적용_가이드.md 참조.
 
 objectType: Equipment
-version: "1.0.0"
+version: "2.0.0"
 description: "제조 공정에서 사용되는 설비/장비를 나타냅니다"
+
+# 준거 표준
+standards:
+  - id: SEMI-E120
+    name: "Common Equipment Model (CEM)"
+    appliesTo: "설비 구조 분해 (Module/Subsystem/IODevice)"
+  - id: SEMI-E10
+    name: "Equipment Reliability, Availability, Maintainability (RAM)"
+    appliesTo: "status 속성의 상태 정의"
+  - id: ISA-95
+    name: "IEC 62264 Enterprise-Control Integration"
+    appliesTo: "설비 계층 (Enterprise/Site/Area/WorkCenter/WorkUnit)"
 
 # 기본 키
 primaryKey: equipment_id
@@ -42,15 +61,35 @@ properties:
 
   status:
     type: enum
-    description: "설비 상태"
+    description: >
+      설비 상태. SEMI E10 6기본상태를 그대로 따른다.
+      자체 용어를 쓰면 사내 기존 가동률/OEE 집계와 수치가 어긋나므로
+      반드시 E10 명칭을 유지할 것.
     required: true
+    standard: SEMI-E10
     values:
-      - RUNNING      # 가동 중
-      - IDLE         # 대기 중
-      - PM           # 예방 정비 중
-      - DOWN         # 고장
-      - ENGINEERING  # 엔지니어링 모드
-    default: "IDLE"
+      - PRODUCTIVE            # 의도된 기능 수행 중 (정규 생산, 재작업, 생산테스트 포함)
+      - STANDBY               # 수행 가능하나 미가동 (작업자/자재/지원도구 대기)
+      - ENGINEERING           # 엔지니어링 실험 수행 중 (공정/설비 엔지니어링)
+      - SCHEDULED_DOWNTIME    # 계획된 비가동 (예방정비 등)
+      - UNSCHEDULED_DOWNTIME  # 계획되지 않은 비가동 (고장, 긴급정비)
+      - NON_SCHEDULED         # 비조업 시간 (미배정 교대, 설비 미설치/셧다운)
+    default: "STANDBY"
+    # 기존 자체 코드 -> SEMI E10 매핑 (레거시 데이터 적재 시 사용)
+    legacyMapping:
+      RUNNING: PRODUCTIVE
+      IDLE: STANDBY
+      PM: SCHEDULED_DOWNTIME
+      DOWN: UNSCHEDULED_DOWNTIME
+      ENGINEERING: ENGINEERING
+
+  e10_substate:
+    type: string
+    description: >
+      E10 기본상태 하위의 사내 세부 사유 코드.
+      기본상태는 표준으로 고정하고, 사내 고유 구분은 여기에 담는다.
+    required: false
+    example: "WAIT_OPERATOR"
 
   location:
     type: string
@@ -116,6 +155,13 @@ timeseries:
 
 # 관계 정의 (이 객체에서 나가는 관계)
 outgoingLinks:
+  - linkType: HAS_MODULE
+    targetObject: Chamber
+    description: >
+      이 설비를 구성하는 챔버/모듈 (SEMI E120 계층).
+      chamber_count 속성만으로는 "어느 챔버에서 무슨 일이 있었는가"를 질의할 수 없어
+      챔버를 독립 객체로 분리한다.
+
   - linkType: PROCESSED_LOT
     targetObject: Lot
     description: "이 설비에서 처리한 Lot"

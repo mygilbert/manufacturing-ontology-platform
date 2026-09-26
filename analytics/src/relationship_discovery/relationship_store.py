@@ -14,10 +14,11 @@ Relationship Store
 import json
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from enum import Enum
 import warnings
 
+from common.cypher_safe import cy_label, cy_num, cy_props, cy_str
 from .config import OntologyConfig, RelationType
 from .correlation_analyzer import CorrelationResult
 from .causality_analyzer import CausalityResult
@@ -30,6 +31,18 @@ class VerificationStatus(Enum):
     VERIFIED = "verified"         # 전문가 검증 완료
     REJECTED = "rejected"         # 거부됨
     AUTO_APPROVED = "auto"        # 자동 승인 (높은 신뢰도)
+
+
+class RelationshipOrigin(Enum):
+    """관계의 출처
+
+    출처가 다르면 신뢰도와 검증 절차가 달라야 한다.
+    이 값을 남기지 않으면 몇 달 뒤에 "이 관계는 사람이 넣은 건가
+    기계가 찾은 건가"를 아무도 알 수 없게 된다.
+    """
+    STRUCTURAL = "structural"   # 계층1: 키/시간구간 조인으로 도출된 사실
+    EXPERT = "expert"           # 계층2: 엔지니어가 입력한 도메인 지식
+    DISCOVERED = "discovered"   # 계층3: 통계 분석이 제시한 가설
 
 
 @dataclass
@@ -47,6 +60,12 @@ class DiscoveredRelationship:
     verified_at: Optional[datetime] = None
     notes: Optional[str] = None
 
+    # --- 출처/근거/유효기간 (docs/06_표준_적용_가이드.md 참조) ---
+    origin: str = RelationshipOrigin.DISCOVERED.value
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+
     def to_cypher_props(self) -> str:
         """Cypher 속성 문자열 생성"""
         props = {
@@ -54,22 +73,18 @@ class DiscoveredRelationship:
             'confidence': round(self.confidence, 4),
             'discovered_at': self.discovered_at.isoformat(),
             'verification_status': self.verification_status,
+            'origin': self.origin,
+            'verified_by': self.verified_by,
+            'verified_at': self.verified_at,
+            'valid_from': self.valid_from,
+            'valid_to': self.valid_to,
+            # 근거는 개별 속성으로 펼쳐 저장한다 (evidence_p_value 등).
+            # 그래야 그래프 질의에서 바로 필터링할 수 있다.
+            **{f'evidence_{k}': v for k, v in self.evidence.items() if v is not None},
             **{k: v for k, v in self.properties.items() if v is not None}
         }
 
-        # 값 형식화
-        formatted = []
-        for k, v in props.items():
-            if isinstance(v, str):
-                formatted.append(f"{k}: '{v}'")
-            elif isinstance(v, bool):
-                formatted.append(f"{k}: {str(v).lower()}")
-            elif isinstance(v, (int, float)):
-                formatted.append(f"{k}: {v}")
-            elif isinstance(v, datetime):
-                formatted.append(f"{k}: '{v.isoformat()}'")
-
-        return '{' + ', '.join(formatted) + '}'
+        return cy_props(props)
 
 
 class RelationshipStore:
@@ -120,7 +135,7 @@ class RelationshipStore:
                 # 노드 존재 확인
                 cur.execute(f"""
                     SELECT * FROM cypher('{self.config.graph_name}', $$
-                        MATCH (p:Parameter {{name: '{param_name}'}})
+                        MATCH (p:Parameter {{name: {cy_str(param_name)}}})
                         RETURN p
                     $$) AS (p agtype);
                 """)
@@ -130,9 +145,9 @@ class RelationshipStore:
                     cur.execute(f"""
                         SELECT * FROM cypher('{self.config.graph_name}', $$
                             CREATE (p:Parameter {{
-                                name: '{param_name}',
-                                type: '{param_type}',
-                                created_at: '{datetime.now().isoformat()}'
+                                name: {cy_str(param_name)},
+                                type: {cy_str(param_type)},
+                                created_at: {cy_str(datetime.now().isoformat())}
                             }})
                             RETURN p
                         $$) AS (p agtype);
@@ -217,13 +232,34 @@ class RelationshipStore:
         return relationships[-1] if relationships else None
 
     def _auto_verify(self, confidence: float) -> str:
-        """자동 검증 여부 결정"""
+        """자동 검증 여부 결정
+
+        [중요] 통계 신뢰도만으로 관계를 승격시키지 않는다.
+
+        신뢰도가 높다는 것은 "데이터에서 강하게 보인다"이지
+        "물리적으로 맞다"가 아니다. 같은 챔버의 두 파라미터는 레시피 스텝이
+        동시에 바뀌기 때문에 인과가 아니어도 상관계수가 쉽게 0.9를 넘는다.
+        이런 관계를 자동 승인하면 그래프가 의미 없는 엣지로 가득 찬다.
+
+        승격 관문은 다음 순서여야 한다.
+          1. 전문가 지식의 "불가능한 관계" 필터 통과 (RelationshipValidator)
+          2. 물리적 타당성 (lag 방향이 공정 순서와 모순되지 않는가)
+          3. 재현성 (다른 기간/다른 설비에서도 나타나는가)
+          4. 엔지니어 검토
+
+        따라서 여기서는 신뢰도가 낮은 것을 걸러낼 뿐, 승격은 하지 않는다.
+        ``require_verification=False``로 명시적으로 끈 경우에만
+        자동 승인하며, 이는 실데이터 운영에서는 권장하지 않는다.
+        """
         if not self.config.require_verification:
+            warnings.warn(
+                "require_verification=False: 발견된 관계가 전문가 검증 없이 "
+                "온톨로지에 승인됩니다. 운영 환경에서는 권장하지 않습니다.",
+                stacklevel=2,
+            )
             return VerificationStatus.AUTO_APPROVED.value
 
-        if confidence >= self.config.min_confidence:
-            return VerificationStatus.AUTO_APPROVED.value
-
+        # 신뢰도가 충분해도 pending에 머문다. 승격은 사람이 한다.
         return VerificationStatus.PENDING.value
 
     def save_pending(self, save_all: bool = False) -> Dict[str, int]:
@@ -274,7 +310,7 @@ class RelationshipStore:
                 # 기존 관계 확인
                 cur.execute(f"""
                     SELECT * FROM cypher('{self.config.graph_name}', $$
-                        MATCH (s:Parameter {{name: '{rel.source}'}})-[r:{rel.relation_type}]->(t:Parameter {{name: '{rel.target}'}})
+                        MATCH (s:Parameter {{name: {cy_str(rel.source)}}})-[r:{cy_label(rel.relation_type)}]->(t:Parameter {{name: {cy_str(rel.target)}}})
                         RETURN r
                     $$) AS (r agtype);
                 """)
@@ -285,7 +321,7 @@ class RelationshipStore:
                     # 기존 관계 업데이트
                     cur.execute(f"""
                         SELECT * FROM cypher('{self.config.graph_name}', $$
-                            MATCH (s:Parameter {{name: '{rel.source}'}})-[r:{rel.relation_type}]->(t:Parameter {{name: '{rel.target}'}})
+                            MATCH (s:Parameter {{name: {cy_str(rel.source)}}})-[r:{cy_label(rel.relation_type)}]->(t:Parameter {{name: {cy_str(rel.target)}}})
                             SET r += {props}
                             RETURN r
                         $$) AS (r agtype);
@@ -294,9 +330,9 @@ class RelationshipStore:
                     # 새 관계 생성
                     cur.execute(f"""
                         SELECT * FROM cypher('{self.config.graph_name}', $$
-                            MATCH (s:Parameter {{name: '{rel.source}'}})
-                            MATCH (t:Parameter {{name: '{rel.target}'}})
-                            CREATE (s)-[r:{rel.relation_type} {props}]->(t)
+                            MATCH (s:Parameter {{name: {cy_str(rel.source)}}})
+                            MATCH (t:Parameter {{name: {cy_str(rel.target)}}})
+                            CREATE (s)-[r:{cy_label(rel.relation_type)} {props}]->(t)
                             RETURN r
                         $$) AS (r agtype);
                     """)
@@ -336,10 +372,10 @@ class RelationshipStore:
                 with self.conn.cursor() as cur:
                     cur.execute(f"""
                         SELECT * FROM cypher('{self.config.graph_name}', $$
-                            MATCH (s:Parameter {{name: '{source}'}})-[r:{relation_type}]->(t:Parameter {{name: '{target}'}})
-                            SET r.verification_status = '{status.value}',
-                                r.verified_by = '{verified_by}',
-                                r.verified_at = '{datetime.now().isoformat()}'
+                            MATCH (s:Parameter {{name: {cy_str(source)}}})-[r:{cy_label(relation_type)}]->(t:Parameter {{name: {cy_str(target)}}})
+                            SET r.verification_status = {cy_str(status.value)},
+                                r.verified_by = {cy_str(verified_by)},
+                                r.verified_at = {cy_str(datetime.now().isoformat())}
                             RETURN r
                         $$) AS (r agtype);
                     """)
@@ -366,16 +402,16 @@ class RelationshipStore:
 
         conditions = []
         if source:
-            conditions.append(f"s.name = '{source}'")
+            conditions.append(f"s.name = {cy_str(source)}")
         if target:
-            conditions.append(f"t.name = '{target}'")
+            conditions.append(f"t.name = {cy_str(target)}")
         if min_confidence > 0:
-            conditions.append(f"r.confidence >= {min_confidence}")
+            conditions.append(f"r.confidence >= {cy_num(min_confidence)}")
         if verified_only:
             conditions.append(f"r.verification_status IN ['verified', 'auto']")
 
         where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
-        rel_pattern = f"[r:{relation_type}]" if relation_type else "[r]"
+        rel_pattern = f"[r:{cy_label(relation_type)}]" if relation_type else "[r]"
 
         try:
             with self.conn.cursor() as cur:

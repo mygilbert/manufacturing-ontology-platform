@@ -10,6 +10,13 @@ from typing import List, Optional, Dict, Any
 import asyncpg
 import redis.asyncio as redis
 
+from common.cypher_safe import (
+    cy_int,
+    cy_label,
+    cy_props,
+    cy_rel_types,
+    cy_str,
+)
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -94,8 +101,8 @@ class OntologyService:
             {"AND" if (equipment_type or status) and location else "WHERE" if location else ""} {"e.location = '" + location + "'" if location else ""}
             RETURN e
             ORDER BY e.equipment_id
-            SKIP {offset}
-            LIMIT {limit}
+            SKIP {cy_int(offset)}
+            LIMIT {cy_int(limit)}
         $$) as (equipment agtype);
         """
 
@@ -124,7 +131,7 @@ class OntologyService:
         """설비 상세 조회"""
         query = f"""
         SELECT * FROM cypher('{self.graph_name}', $$
-            MATCH (e:Equipment {{equipment_id: '{equipment_id}'}})
+            MATCH (e:Equipment {{equipment_id: {cy_str(equipment_id)}}})
             RETURN e
         $$) as (equipment agtype);
         """
@@ -146,12 +153,11 @@ class OntologyService:
 
     async def create_equipment(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """설비 생성"""
-        props = ", ".join([f"{k}: '{v}'" if isinstance(v, str) else f"{k}: {v}"
-                          for k, v in data.items()])
+        props = cy_props(data)
 
         query = f"""
         SELECT * FROM cypher('{self.graph_name}', $$
-            CREATE (e:Equipment {{{props}}})
+            CREATE (e:Equipment {props})
             RETURN e
         $$) as (equipment agtype);
         """
@@ -179,11 +185,11 @@ class OntologyService:
         """설비 알람 이력 조회"""
         query = f"""
         SELECT * FROM cypher('{self.graph_name}', $$
-            MATCH (e:Equipment {{equipment_id: '{equipment_id}'}})-[:GENERATES]->(a:Alarm)
+            MATCH (e:Equipment {{equipment_id: {cy_str(equipment_id)}}})-[:GENERATES]->(a:Alarm)
             {"WHERE a.severity = '" + severity + "'" if severity else ""}
             RETURN a
             ORDER BY a.occurred_at DESC
-            LIMIT {limit}
+            LIMIT {cy_int(limit)}
         $$) as (alarm agtype);
         """
 
@@ -232,7 +238,7 @@ class OntologyService:
             query += f" AND timestamp <= ${len(params) + 1}"
             params.append(until)
 
-        query += f" ORDER BY timestamp DESC LIMIT {limit}"
+        query += f" ORDER BY timestamp DESC LIMIT {cy_int(limit)}"
 
         try:
             # TimescaleDB 연결
@@ -274,8 +280,8 @@ class OntologyService:
             {"AND" if product_code and status else "WHERE" if status else ""} {"l.status = '" + status + "'" if status else ""}
             RETURN l
             ORDER BY l.start_time DESC
-            SKIP {offset}
-            LIMIT {limit}
+            SKIP {cy_int(offset)}
+            LIMIT {cy_int(limit)}
         $$) as (lot agtype);
         """
 
@@ -300,7 +306,7 @@ class OntologyService:
         """Lot 상세 조회"""
         query = f"""
         SELECT * FROM cypher('{self.graph_name}', $$
-            MATCH (l:Lot {{lot_id: '{lot_id}'}})
+            MATCH (l:Lot {{lot_id: {cy_str(lot_id)}}})
             OPTIONAL MATCH (l)-[:CONTAINS]->(w:Wafer)
             RETURN l, count(w) as wafer_count
         $$) as (lot agtype, wafer_count agtype);
@@ -327,7 +333,7 @@ class OntologyService:
         """Lot 순방향 추적"""
         query = f"""
         SELECT * FROM cypher('{self.graph_name}', $$
-            MATCH p = (l:Lot {{lot_id: '{lot_id}'}})-[*1..{depth}]->()
+            MATCH p = (l:Lot {{lot_id: {cy_str(lot_id)}}})-[*1..{cy_int(depth, minimum=1, maximum=10)}]->()
             RETURN p
         $$) as (path agtype);
         """
@@ -358,7 +364,7 @@ class OntologyService:
         """Lot 계보 (공정 이력)"""
         query = f"""
         SELECT * FROM cypher('{self.graph_name}', $$
-            MATCH (l:Lot {{lot_id: '{lot_id}'}})-[r:PROCESSED_AT]->(e:Equipment)
+            MATCH (l:Lot {{lot_id: {cy_str(lot_id)}}})-[r:PROCESSED_AT]->(e:Equipment)
             RETURN e, r
             ORDER BY r.start_time
         $$) as (equipment agtype, relation agtype);
@@ -398,24 +404,21 @@ class OntologyService:
         relation_types: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """그래프 탐색"""
-        id_field = f"{start_type.lower()}_id"
-        rel_filter = f"[:{('|'.join(relation_types))}]" if relation_types else ""
+        label = cy_label(start_type)
+        id_field = cy_label(f"{start_type.lower()}_id")
+        hops = cy_int(depth, minimum=1, maximum=10)
+
+        rel_types = cy_rel_types(relation_types)
+        # 관계 타입 필터가 있으면 [:A|B*1..n], 없으면 [*1..n] 형태가 된다.
+        edge = f"[:{rel_types}*1..{hops}]" if rel_types else f"[*1..{hops}]"
+        anchor = f"(n:{label} {{{id_field}: {cy_str(start_id)}}})"
 
         if direction == "forward":
-            if rel_filter:
-                pattern = f"(n:{start_type} {{{id_field}: '{start_id}'}})-{rel_filter}*1..{depth}->(m)"
-            else:
-                pattern = f"(n:{start_type} {{{id_field}: '{start_id}'}})-[*1..{depth}]->(m)"
+            pattern = f"{anchor}-{edge}->(m)"
         elif direction == "backward":
-            if rel_filter:
-                pattern = f"(m)-{rel_filter}*1..{depth}->(n:{start_type} {{{id_field}: '{start_id}'}})"
-            else:
-                pattern = f"(m)-[*1..{depth}]->(n:{start_type} {{{id_field}: '{start_id}'}})"
+            pattern = f"(m)-{edge}->{anchor}"
         else:
-            if rel_filter:
-                pattern = f"(n:{start_type} {{{id_field}: '{start_id}'}})-{rel_filter}*1..{depth}-(m)"
-            else:
-                pattern = f"(n:{start_type} {{{id_field}: '{start_id}'}})-[*1..{depth}]-(m)"
+            pattern = f"{anchor}-{edge}-(m)"
 
         query = f"""
         SELECT * FROM cypher('{self.graph_name}', $$
@@ -455,15 +458,20 @@ class OntologyService:
         max_depth: int = 5,
     ) -> Dict[str, Any]:
         """두 노드 간 경로 탐색 (BFS 방식으로 최단 경로 탐색)"""
-        from_id_field = f"{from_type.lower()}_id"
-        to_id_field = f"{to_type.lower()}_id"
+        from_label = cy_label(from_type)
+        to_label = cy_label(to_type)
+        from_id_field = cy_label(f"{from_type.lower()}_id")
+        to_id_field = cy_label(f"{to_type.lower()}_id")
+        from_literal = cy_str(from_id)
+        to_literal = cy_str(to_id)
 
         # AGE는 shortestPath를 지원하지 않으므로 깊이별로 탐색
         for depth in range(1, max_depth + 1):
             # 양방향 경로 탐색 (방향 무관)
+            hops = cy_int(depth, minimum=1, maximum=10)
             query = f"""
             SELECT * FROM cypher('{self.graph_name}', $$
-                MATCH p = (a:{from_type} {{{from_id_field}: '{from_id}'}})-[*{depth}]-(b:{to_type} {{{to_id_field}: '{to_id}'}})
+                MATCH p = (a:{from_label} {{{from_id_field}: {from_literal}}})-[*{hops}]-(b:{to_label} {{{to_id_field}: {to_literal}}})
                 RETURN p
                 LIMIT 1
             $$) as (path agtype);
@@ -500,12 +508,13 @@ class OntologyService:
         relation_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """이웃 노드 조회"""
-        id_field = f"{node_type.lower()}_id"
-        rel_filter = f":{relation_type}" if relation_type else ""
+        label = cy_label(node_type)
+        id_field = cy_label(f"{node_type.lower()}_id")
+        rel_filter = f":{cy_label(relation_type)}" if relation_type else ""
 
         query = f"""
         SELECT * FROM cypher('{self.graph_name}', $$
-            MATCH (n:{node_type} {{{id_field}: '{node_id}'}})-[r{rel_filter}]-(neighbor)
+            MATCH (n:{label} {{{id_field}: {cy_str(node_id)}}})-[r{rel_filter}]-(neighbor)
             RETURN neighbor, r, labels(neighbor) as labels
         $$) as (neighbor agtype, relation agtype, labels agtype);
         """
@@ -545,19 +554,18 @@ class OntologyService:
         properties: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """관계 생성"""
-        from_id_field = f"{from_type.lower()}_id"
-        to_id_field = f"{to_type.lower()}_id"
-
-        props = ""
-        if properties:
-            props = "{" + ", ".join([f"{k}: '{v}'" if isinstance(v, str) else f"{k}: {v}"
-                                      for k, v in properties.items()]) + "}"
+        from_label = cy_label(from_type)
+        to_label = cy_label(to_type)
+        from_id_field = cy_label(f"{from_type.lower()}_id")
+        to_id_field = cy_label(f"{to_type.lower()}_id")
+        rel_type = cy_label(relation)
+        props = cy_props(properties)
 
         query = f"""
         SELECT * FROM cypher('{self.graph_name}', $$
-            MATCH (a:{from_type} {{{from_id_field}: '{from_id}'}}),
-                  (b:{to_type} {{{to_id_field}: '{to_id}'}})
-            CREATE (a)-[r:{relation} {props}]->(b)
+            MATCH (a:{from_label} {{{from_id_field}: {cy_str(from_id)}}}),
+                  (b:{to_label} {{{to_id_field}: {cy_str(to_id)}}})
+            CREATE (a)-[r:{rel_type} {props}]->(b)
             RETURN r
         $$) as (relation agtype);
         """
@@ -589,7 +597,7 @@ class OntologyService:
         SELECT * FROM cypher('{self.graph_name}', $$
             MATCH (a)-[r]->(b)
             RETURN a, r, b
-            LIMIT {limit}
+            LIMIT {cy_int(limit)}
         $$) as (from_node agtype, relation agtype, to_node agtype);
         """
 

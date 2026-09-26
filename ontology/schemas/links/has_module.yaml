@@ -1,0 +1,48 @@
+# HAS_MODULE Link Type
+# 설비가 챔버/모듈을 포함하는 관계 (SEMI E120 계층)
+
+linkType: HAS_MODULE
+version: "1.0.0"
+description: "설비가 챔버/모듈을 구성 요소로 포함하는 관계"
+
+standards:
+  - id: SEMI-E120
+    name: "Common Equipment Model (CEM)"
+    appliesTo: "설비-모듈 포함 계층"
+
+source:
+  objectType: Equipment
+  cardinality: 1
+
+target:
+  objectType: Chamber
+  cardinality: N
+
+properties:
+  position:
+    type: string
+    description: "설비 내 모듈 위치/슬롯"
+    required: false
+    example: "PM2"
+
+  installed_at:
+    type: datetime
+    description: "모듈 설치 시점"
+    required: false
+
+  removed_at:
+    type: datetime
+    description: >
+      모듈 제거 시점. null이면 현재 장착 상태.
+      챔버 교체 이력이 남아야 "교체 전후 거동 비교"가 가능하다.
+    required: false
+
+indexes:
+  - fields: [position]
+
+sourceMapping:
+  fdc:
+    table: "FDC_EQUIPMENT_MASTER"
+    note: >
+      설비-챔버 구성이 마스터로 관리되지 않으면
+      FDC 측정값의 (EQUIP_ID, CHAMBER_ID) 조합에서 도출한다.

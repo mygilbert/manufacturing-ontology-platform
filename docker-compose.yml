@@ -84,6 +84,7 @@ services:
   # Zookeeper (Kafka 의존성)
   # ============================================================
   zookeeper:
+    profiles: ["streaming"]
     image: confluentinc/cp-zookeeper:7.4.0
     container_name: ontology-zookeeper
     environment:
@@ -102,6 +103,7 @@ services:
   # Kafka (메시지 브로커)
   # ============================================================
   kafka:
+    profiles: ["streaming"]
     image: confluentinc/cp-kafka:7.4.0
     container_name: ontology-kafka
     depends_on:
@@ -134,6 +136,7 @@ services:
   # Schema Registry (Avro 스키마 관리)
   # ============================================================
   schema-registry:
+    profiles: ["streaming"]
     image: confluentinc/cp-schema-registry:7.4.0
     container_name: ontology-schema-registry
     depends_on:
@@ -152,6 +155,7 @@ services:
   # Kafka Connect (Debezium CDC)
   # ============================================================
   kafka-connect:
+    profiles: ["cdc"]
     image: debezium/connect:2.4
     container_name: ontology-kafka-connect
     depends_on:
@@ -182,6 +186,7 @@ services:
   # Kafka UI (관리 콘솔)
   # ============================================================
   kafka-ui:
+    profiles: ["streaming"]
     image: provectuslabs/kafka-ui:latest
     container_name: ontology-kafka-ui
     depends_on:
@@ -204,14 +209,13 @@ services:
   # ============================================================
   api:
     build:
-      context: ./api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api/Dockerfile
     container_name: ontology-api
     depends_on:
       - postgres
       - timescaledb
       - redis
-      - kafka
     ports:
       - "8000:8000"
     environment:
@@ -260,11 +264,10 @@ services:
   # ============================================================
   analytics:
     build:
-      context: ./analytics
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: analytics/Dockerfile
     container_name: ontology-analytics
     depends_on:
-      - kafka
       - redis
       - timescaledb
     environment:
@@ -288,9 +291,10 @@ services:
   # CDC Transformers
   # ============================================================
   transformer-fdc:
+    profiles: ["streaming"]
     build:
-      context: ./ingestion/transformers
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ingestion/transformers/Dockerfile
     container_name: ontology-transformer-fdc
     command: ["python", "fdc_transformer.py", "measurement"]
     depends_on:
@@ -315,9 +319,10 @@ services:
     restart: unless-stopped
 
   transformer-spc:
+    profiles: ["streaming"]
     build:
-      context: ./ingestion/transformers
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ingestion/transformers/Dockerfile
     container_name: ontology-transformer-spc
     command: ["python", "spc_transformer.py"]
     depends_on:
@@ -342,9 +347,10 @@ services:
     restart: unless-stopped
 
   ontology-sink:
+    profiles: ["streaming"]
     build:
-      context: ./ingestion/transformers
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ingestion/transformers/Dockerfile
     container_name: ontology-sink
     command: ["python", "ontology_sink.py"]
     depends_on:
@@ -372,6 +378,7 @@ services:
   # Flink JobManager (클러스터 마스터)
   # ============================================================
   flink-jobmanager:
+    profiles: ["streaming"]
     image: flink:1.18-java11
     container_name: ontology-flink-jobmanager
     ports:
@@ -399,6 +406,7 @@ services:
   # Flink TaskManager (워커 노드)
   # ============================================================
   flink-taskmanager:
+    profiles: ["streaming"]
     image: flink:1.18-java11
     container_name: ontology-flink-taskmanager
     depends_on:
@@ -422,6 +430,7 @@ services:
   # Flink Stream Jobs - FDC Enrichment
   # ============================================================
   flink-job-fdc:
+    profiles: ["streaming"]
     build:
       context: ./stream-processing
       dockerfile: Dockerfile
@@ -445,6 +454,7 @@ services:
   # Flink Stream Jobs - SPC Control Chart
   # ============================================================
   flink-job-spc:
+    profiles: ["streaming"]
     build:
       context: ./stream-processing
       dockerfile: Dockerfile
@@ -468,6 +478,7 @@ services:
   # Flink Stream Jobs - CEP Anomaly Detection
   # ============================================================
   flink-job-cep:
+    profiles: ["streaming"]
     build:
       context: ./stream-processing
       dockerfile: Dockerfile
@@ -498,6 +509,7 @@ services:
   # Flink Stream Jobs - Window Aggregation
   # ============================================================
   flink-job-aggregation:
+    profiles: ["streaming"]
     build:
       context: ./stream-processing
       dockerfile: Dockerfile

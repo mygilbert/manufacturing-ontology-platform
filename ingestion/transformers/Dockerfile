@@ -9,12 +9,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Python dependencies
-COPY requirements.txt .
+COPY ingestion/transformers/requirements.txt .
 RUN python -m pip install --upgrade pip && \
     python -m pip install --no-cache-dir -r requirements.txt
 
 # Source code
-COPY . .
+COPY ingestion/transformers/ .
+COPY common/ /app/common/
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1

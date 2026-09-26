@@ -1,0 +1,42 @@
+# OBSERVES Link Type
+# 센서가 관측 대상을 관측하는 관계 (SOSA 관측 패턴)
+
+linkType: OBSERVES
+version: "1.0.0"
+description: "센서가 특정 챔버/설비를 관측하는 관계. SOSA:hasFeatureOfInterest에 대응"
+
+standards:
+  - id: W3C-SOSA
+    name: "Sensor, Observation, Sample, and Actuator"
+    appliesTo: "sosa:hasFeatureOfInterest"
+
+source:
+  objectType: Sensor
+  cardinality: N
+
+target:
+  objectType: Chamber
+  cardinality: 1
+
+properties:
+  observed_property:
+    type: string
+    description: "관측 물리량 (정규화된 이름)"
+    required: true
+    example: "chamber_pressure"
+
+  valid_from:
+    type: datetime
+    description: >
+      이 관측 관계가 시작된 시점.
+      센서를 교체하거나 다른 챔버로 옮기면 기존 관계를 닫고 새 관계를 만든다.
+    required: false
+
+  valid_to:
+    type: datetime
+    description: "관측 관계 종료 시점. null이면 현재 유효"
+    required: false
+
+indexes:
+  - fields: [observed_property]
+  - fields: [valid_from]

@@ -13,12 +13,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Python 패키지 설치
-COPY requirements.txt /app/
+COPY api/requirements.txt /app/
 RUN python -m pip install --upgrade pip && \
     python -m pip install --no-cache-dir -r requirements.txt
 
 # 소스 코드 복사
-COPY src/ /app/
+COPY api/src/ /app/
+COPY common/ /app/common/
 
 # 환경 변수
 ENV PYTHONPATH=/app

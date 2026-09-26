@@ -1,0 +1,40 @@
+# 빌드 컨텍스트가 리포지토리 루트이므로, 이미지에 필요 없는 것은 반드시 제외한다.
+# 제외하지 않으면 .git(14MB)과 대용량 산출물이 매 빌드마다 데몬으로 전송된다.
+
+.git
+.github
+.gitignore
+
+# 문서/설정
+docs
+README.md
+*.md
+.env
+.env.*
+!.env.example
+
+# Python
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+venv
+.venv
+
+# Node (frontend는 자체 빌드 컨텍스트를 사용한다)
+frontend
+**/node_modules
+
+# 대용량 데이터/산출물
+analytics/results
+analytics/sample_data
+analytics/models
+**/*.csv
+**/*.parquet
+**/*.png
+**/*.jpg
+
+# 테스트/로컬
+tests
+*.log
+.DS_Store

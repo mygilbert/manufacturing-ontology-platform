@@ -1,0 +1,130 @@
+# Sensor Object Type
+# 공정 파라미터를 관측하는 센서
+#
+# 왜 센서와 관측대상을 분리하는가 (W3C SOSA 관측 패턴)
+#   기존 Measurement 객체는 "센서"와 "관측 대상"이 섞여 있었다.
+#   실제로는 다음이 모두 다른 개념이다.
+#     - Sensor            : 관측을 수행하는 장치 (TEMP_001)
+#     - ObservedProperty  : 관측되는 물리량 (온도)
+#     - FeatureOfInterest : 관측 대상 (EQP-001의 챔버2)
+#     - Observation       : 특정 시각의 관측 1건 (47.2 degC @ 14:03:22)
+#   센서를 교체해도 관측 대상은 그대로이고, 한 센서가 여러 대상을 볼 수도 있다.
+#   분리해두지 않으면 "센서 교체 전후 데이터를 이어서 볼 수 있는가"에 답할 수 없다.
+#
+# 참조 표준
+#   - W3C SSN/SOSA (https://www.w3.org/TR/vocab-ssn/)
+#   - SEMI E164 (EDA Common Metadata): 파라미터 명명 체계
+
+objectType: Sensor
+version: "1.0.0"
+description: "공정 파라미터를 관측하는 센서. SOSA:Sensor에 대응"
+
+standards:
+  - id: W3C-SOSA
+    name: "Sensor, Observation, Sample, and Actuator"
+    appliesTo: "센서/관측 패턴"
+  - id: SEMI-E164
+    name: "EDA Common Metadata"
+    appliesTo: "param_id 명명 체계"
+
+primaryKey: sensor_id
+
+properties:
+  sensor_id:
+    type: string
+    description: "센서 고유 식별자"
+    required: true
+    indexed: true
+    example: "EQP-ETCH-001.CH2.TEMP"
+
+  param_id:
+    type: string
+    description: >
+      소스 시스템(FDC)이 사용하는 파라미터 ID.
+      벤더별로 같은 물리량에 다른 이름을 쓰므로 정규화 대상이다.
+    required: true
+    indexed: true
+    example: "TEMP_001"
+
+  observed_property:
+    type: string
+    description: >
+      관측되는 물리량의 정규화된 이름 (SOSA:ObservedProperty).
+      param_id가 벤더마다 달라도 이 값으로 설비 간 비교가 가능해진다.
+    required: true
+    indexed: true
+    example: "chamber_temperature"
+
+  unit:
+    type: string
+    description: "측정 단위 (UCUM 권장)"
+    required: true
+    example: "Cel"
+
+  equipment_id:
+    type: string
+    description: "소속 설비 ID"
+    required: true
+    indexed: true
+
+  chamber_id:
+    type: string
+    description: "관측 대상 챔버 ID (SOSA:FeatureOfInterest)"
+    required: false
+    indexed: true
+
+  sampling_interval_ms:
+    type: integer
+    description: "샘플링 주기 (ms). 관계 발견의 시차(lag) 해석에 필요"
+    required: false
+    example: 1000
+
+  valid_from:
+    type: datetime
+    description: "이 센서 정의가 유효해진 시점 (센서 교체/재보정 시 새 구간 생성)"
+    required: false
+
+  valid_to:
+    type: datetime
+    description: "유효 종료 시점. null이면 현재 유효"
+    required: false
+
+outgoingLinks:
+  - linkType: OBSERVES
+    targetObject: Chamber
+    description: "이 센서가 관측하는 대상 (SOSA:hasFeatureOfInterest)"
+
+incomingLinks:
+  - linkType: MEASURED_BY
+    sourceObject: Chamber
+    description: "이 챔버를 관측하는 센서"
+
+indexes:
+  - fields: [sensor_id]
+    unique: true
+  - fields: [equipment_id, chamber_id]
+    unique: false
+  - fields: [observed_property]
+    unique: false
+
+# SOSA 용어 매핑 (외부 시스템 연계 시 참조)
+sosaMapping:
+  class: "sosa:Sensor"
+  properties:
+    observed_property: "sosa:observes"
+    chamber_id: "sosa:hasFeatureOfInterest"
+
+# 데이터 소스 매핑
+# TODO: 사내 실제 테이블/컬럼명으로 교체할 것
+sourceMapping:
+  fdc:
+    table: "FDC_PARAM_MASTER"
+    keyColumn: "PARAM_ID"
+    columnMapping:
+      param_id: "PARAM_ID"
+      unit: "UNIT"
+      equipment_id: "EQUIP_ID"
+      chamber_id: "CHAMBER_ID"
+    note: >
+      파라미터 마스터가 없으면 측정값에서 distinct PARAM_ID로 도출하고
+      observed_property는 별도 매핑표로 사람이 채운다.

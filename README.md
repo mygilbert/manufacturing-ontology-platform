@@ -103,6 +103,34 @@ GET  /api/agent/prompt
 PUT  /api/agent/prompt
 ```
 
+## 준거 표준
+
+제조 설비/공정 온톨로지는 바닥부터 만들지 않는다. 자체 용어로 모델링하면
+사내 기존 집계(가동률/OEE)와 수치가 어긋나고 외부 연계 시 전부 다시 매핑해야 한다.
+
+| 표준 | 적용 대상 | 상태 |
+|---|---|---|
+| **SEMI E10 / E58** | 설비 상태 모델 (Productive / Standby / Engineering / Scheduled·Unscheduled Downtime / Non-scheduled) | 반영 |
+| **SEMI E120 (CEM)** | 설비 구조 분해. `Chamber`를 1급 객체로 분리, `HAS_MODULE` 관계 | 반영 |
+| **SEMI E164** | 파라미터 명명 체계 (`Sensor.param_id`) | 부분 |
+| **ISA-95 / IEC 62264** | 설비 계층, 작업 수행 이력 (`PROCESSED_AT`) | 부분 |
+| **W3C SSN/SOSA** | 관측 패턴. `Sensor` / `OBSERVES` / `Measurement`(=`sosa:Observation`) | 반영 |
+| **IOF Core (BFO)** | 상위 온톨로지 | 향후 |
+
+자세한 매핑과 적용 근거는 **[docs/06_표준_적용_가이드.md](docs/06_표준_적용_가이드.md)** 참조.
+
+### 온톨로지 문서
+
+| 문서 | 내용 |
+|---|---|
+| [01_프로젝트_개요](docs/01_프로젝트_개요.md) | 프로젝트 배경과 목표 |
+| [02_관계발견_엔진](docs/02_관계발견_엔진.md) | 상관/인과/패턴 분석 |
+| [03_도메인지식_템플릿](docs/03_도메인지식_템플릿.md) | 전문가 지식 수집 양식 |
+| [04_개발진행_현황](docs/04_개발진행_현황.md) | 구현 현황 |
+| **[05_역량질문](docs/05_역량질문.md)** | 온톨로지가 답해야 할 질문 목록 (요구사항이자 평가 기준) |
+| **[06_표준_적용_가이드](docs/06_표준_적용_가이드.md)** | SEMI/ISA-95/SOSA 적용, 관계 메타데이터 규약 |
+| **[07_개선_로드맵](docs/07_개선_로드맵.md)** | 실데이터 연동 전 과제, 배치/스트리밍 판단 기준 |
+
 ## 온톨로지 모델
 
 ### 배터리 제조 계층 구조
@@ -224,7 +252,33 @@ ollama pull exaone3.5:7.8b
 
 ```bash
 cd api/src
-PYTHONPATH=.:../../analytics/src python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+# 리포지토리 루트를 PYTHONPATH에 포함해야 common/ 공용 모듈이 로드된다
+PYTHONPATH=.:../..:../../analytics/src python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+### 3-1. Docker Compose 기동 (프로파일)
+
+서비스 정의는 전부 유지하되, 필요한 것만 기동한다.
+
+```bash
+# 기본: PostgreSQL+AGE / TimescaleDB / Redis / API / Frontend / Analytics
+docker compose up
+
+# + Kafka, Flink 스트리밍 경로
+docker compose --profile streaming up
+
+# + Debezium CDC (Kafka Connect)
+docker compose --profile cdc --profile streaming up
+```
+
+배치(Parquet 시간 단위 수집) 구조에서는 기본 프로파일만으로 동작한다.
+스트리밍 전환 판단 기준은 `docs/07_개선_로드맵.md` 참조.
+
+### 3-2. 테스트
+
+```bash
+pip install pytest
+pytest            # 리포지토리 루트에서 실행
 ```
 
 ### 4. 프론트엔드 실행

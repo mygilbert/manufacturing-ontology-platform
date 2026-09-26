@@ -29,3 +29,12 @@ Thumbs.db
 # Docker
 .docker/
 chroma_db/
+
+# 데이터/산출물 (LFS 또는 외부 저장소 사용 권장)
+# 주의: 이미 커밋된 파일은 계속 추적된다. 분리는 docs/07_개선_로드맵.md P2 항목 참조
+analytics/results/
+analytics/sample_data/
+*.parquet
+
+# 배치 랜딩 폴더 (워크스테이션 로컬)
+landing/

@@ -1,9 +1,50 @@
 # Measurement Object Type
 # 측정값을 나타내는 온톨로지 객체 (FDC, SPC 데이터)
+#
+# [중요] 저장 위치에 대한 원칙
+#   Measurement는 그래프(Apache AGE)에 노드로 적재하지 않는다.
+#   FDC 측정값은 설비 1대당 하루 수백만 건 규모라 그래프에 넣으면
+#   노드 수가 폭발하고 AGE가 버티지 못한다.
+#
+#   그래프에는 "무엇이 무엇과 어떻게 연결되는가"(Equipment/Chamber/Lot/Sensor와
+#   그 관계)만 담고, 측정값 자체는 TimescaleDB 하이퍼테이블에 두고
+#   (sensor_id, chamber_id, timestamp) 키로 참조한다.
+#
+#   이 스키마는 TimescaleDB 테이블의 논리 모델이자 그래프와의 연결 규약이다.
+#
+# 참조 표준
+#   - W3C SSN/SOSA: 이 객체는 sosa:Observation에 대응한다.
+#     센서(Sensor), 관측 물리량(observed_property), 관측 대상(Chamber)은
+#     각각 별도 객체/속성으로 분리되어 있다. sensor.yaml 참조.
 
 objectType: Measurement
-version: "1.0.0"
-description: "공정 측정값 (FDC 센서 데이터, SPC 품질 데이터)"
+version: "2.0.0"
+description: "공정 측정값 (FDC 센서 데이터, SPC 품질 데이터). SOSA:Observation에 대응"
+
+standards:
+  - id: W3C-SOSA
+    name: "Sensor, Observation, Sample, and Actuator"
+    appliesTo: "관측 1건의 구조"
+
+# 저장 위치 선언 (그래프 적재 금지)
+storage:
+  primary: timescaledb
+  table: fdc_measurements
+  graphNode: false
+  graphReference:
+    note: >
+      그래프에서는 Sensor -> OBSERVES -> Chamber 경로로 접근하고,
+      실제 값은 TimescaleDB에서 (sensor_id, timestamp) 범위 질의로 가져온다.
+
+# SOSA 용어 매핑
+sosaMapping:
+  class: "sosa:Observation"
+  properties:
+    sensor_id: "sosa:madeBySensor"
+    observed_property: "sosa:observedProperty"
+    chamber_id: "sosa:hasFeatureOfInterest"
+    timestamp: "sosa:resultTime"
+    value: "sosa:hasSimpleResult"
 
 # 기본 키 (복합 키)
 primaryKey: measurement_id
@@ -27,6 +68,28 @@ properties:
       - METROLOGY    # 계측 장비
       - INLINE       # 인라인 검사
     example: "FDC"
+
+  sensor_id:
+    type: string
+    description: "관측을 수행한 센서 ID (sosa:madeBySensor). sensor.yaml 참조"
+    required: true
+    indexed: true
+    example: "EQP-ETCH-001.CH2.TEMP"
+
+  observed_property:
+    type: string
+    description: >
+      관측 물리량의 정규화된 이름 (sosa:observedProperty).
+      param_id는 벤더별로 다르므로, 설비 간 비교는 이 값으로 한다.
+    required: true
+    indexed: true
+    example: "chamber_temperature"
+
+  chamber_id:
+    type: string
+    description: "관측 대상 챔버 ID (sosa:hasFeatureOfInterest)"
+    required: false
+    indexed: true
 
   equipment_id:
     type: string

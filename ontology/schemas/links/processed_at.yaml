@@ -1,9 +1,31 @@
 # PROCESSED_AT Link Type
 # Lot/Wafer가 특정 설비에서 처리되었음을 나타내는 관계
+#
+# [이 관계가 온톨로지의 척추다]
+#   FDC 데이터는 "설비 축"이고 MES 데이터는 "제품 축"이다.
+#   불량은 제품에서 발견되고 원인은 설비에 있으므로, 이 둘을 잇지 못하면
+#   "설비가 이상했다"와 "이 Lot이 불량이다"가 영원히 따로 논다.
+#   PROCESSED_AT이 그 유일한 다리다.
+#
+# [생성 방법: 키 조인이 아니라 시간구간 조인]
+#   equipment_id가 FDC/MES 공통이어도 그것만으로 조인하면 안 된다.
+#   측정값 한 건을 Lot에 붙이려면 반드시 처리 구간 안에 들어가는지 봐야 한다.
+#
+#     ON  m.equipment_id = t.equipment_id
+#     AND m.chamber_id   = t.chamber_id
+#     AND m.timestamp >= t.track_in_time
+#     AND m.timestamp <  t.track_out_time     -- 반열린 구간 [in, out)
+#
+#   경계/재작업/챔버 미기록 처리는 docs/07_개선_로드맵.md 참조.
 
 linkType: PROCESSED_AT
-version: "1.0.0"
-description: "Lot 또는 Wafer가 특정 설비에서 처리된 관계"
+version: "2.0.0"
+description: "Lot 또는 Wafer가 특정 설비/챔버에서 처리된 관계 (시간구간 기반)"
+
+standards:
+  - id: ISA-95
+    name: "IEC 62264 Enterprise-Control Integration"
+    appliesTo: "작업 수행 이력 (Work Performance)"
 
 # 관계 방향
 source:
@@ -38,8 +60,36 @@ properties:
 
   chamber_id:
     type: string
-    description: "챔버 ID"
+    description: "처리된 챔버 ID. FDC 측정값과 조인할 때 설비만으로는 부족하다"
     required: false
+
+  chamber_resolved:
+    type: boolean
+    description: >
+      챔버를 특정할 수 있었는지 여부.
+      MES가 설비 단위로만 기록하면 false가 되고, 이 관계는 챔버 단위
+      통계/상관분석에서 제외해야 한다. 조용히 섞으면 결과가 오염된다.
+    required: true
+    default: false
+
+  pass_no:
+    type: integer
+    description: >
+      같은 Lot이 같은 설비를 통과한 회차 (1부터).
+      재작업(REWORK)이 있으면 Lot-Equipment 사이에 엣지가 여러 개 생긴다.
+      이 값이 없으면 "2회차 통과에서만 불량" 같은 질의를 할 수 없다.
+    required: true
+    default: 1
+
+  interval_closed:
+    type: boolean
+    description: >
+      track_out까지 확정된 구간인지 여부.
+      배치 경계에서 track_in만 도착하면 열린 구간이 된다. 열린 구간에
+      측정값을 확정 연결하면 다음 배치에 오는 구간이 영영 누락되므로,
+      false인 동안에는 관계를 확정하지 않는다.
+    required: true
+    default: false
 
   status:
     type: enum

@@ -12,6 +12,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 from confluent_kafka import Consumer, KafkaError, KafkaException
 
+from common.cypher_safe import cy_num, cy_props, cy_str
 from config import KafkaConfig, PostgresConfig, TimescaleConfig
 
 logger = logging.getLogger(__name__)
@@ -305,7 +306,7 @@ class OntologySink:
         # AGE 그래프에도 저장
         with self.pg_conn.cursor() as cur:
             for r in records:
-                props = json.dumps({
+                props = cy_props({
                     "alarm_id": r.get("alarm_id"),
                     "alarm_code": r.get("alarm_code"),
                     "alarm_name": r.get("alarm_name"),
@@ -320,7 +321,7 @@ class OntologySink:
 
                 cur.execute(f"""
                     SELECT * FROM cypher('manufacturing', $$
-                        MERGE (a:Alarm {{alarm_id: '{r.get("alarm_id")}'}})
+                        MERGE (a:Alarm {{alarm_id: {cy_str(r.get("alarm_id"))}}})
                         SET a += {props}
                         RETURN a
                     $$) AS (a agtype)
@@ -332,7 +333,7 @@ class OntologySink:
         """설비 데이터 적재 (AGE)"""
         with self.pg_conn.cursor() as cur:
             for r in records:
-                props = json.dumps({
+                props = cy_props({
                     "equipment_id": r.get("equipment_id"),
                     "name": r.get("name"),
                     "type": r.get("type"),
@@ -342,7 +343,7 @@ class OntologySink:
 
                 cur.execute(f"""
                     SELECT * FROM cypher('manufacturing', $$
-                        MERGE (e:Equipment {{equipment_id: '{r.get("equipment_id")}'}})
+                        MERGE (e:Equipment {{equipment_id: {cy_str(r.get("equipment_id"))}}})
                         SET e += {props}
                         RETURN e
                     $$) AS (e agtype)
@@ -354,7 +355,7 @@ class OntologySink:
         """Lot 데이터 적재 (AGE)"""
         with self.pg_conn.cursor() as cur:
             for r in records:
-                props = json.dumps({
+                props = cy_props({
                     "lot_id": r.get("lot_id"),
                     "product_code": r.get("product_code"),
                     "product_name": r.get("product_name"),
@@ -368,7 +369,7 @@ class OntologySink:
 
                 cur.execute(f"""
                     SELECT * FROM cypher('manufacturing', $$
-                        MERGE (l:Lot {{lot_id: '{r.get("lot_id")}'}})
+                        MERGE (l:Lot {{lot_id: {cy_str(r.get("lot_id"))}}})
                         SET l += {props}
                         RETURN l
                     $$) AS (l agtype)
@@ -380,7 +381,7 @@ class OntologySink:
         """Wafer 데이터 적재 (AGE)"""
         with self.pg_conn.cursor() as cur:
             for r in records:
-                props = json.dumps({
+                props = cy_props({
                     "wafer_id": r.get("wafer_id"),
                     "lot_id": r.get("lot_id"),
                     "slot_no": r.get("slot_no"),
@@ -389,7 +390,7 @@ class OntologySink:
 
                 cur.execute(f"""
                     SELECT * FROM cypher('manufacturing', $$
-                        MERGE (w:Wafer {{wafer_id: '{r.get("wafer_id")}'}})
+                        MERGE (w:Wafer {{wafer_id: {cy_str(r.get("wafer_id"))}}})
                         SET w += {props}
                         RETURN w
                     $$) AS (w agtype)
@@ -399,12 +400,12 @@ class OntologySink:
                 if r.get("lot_id"):
                     cur.execute(f"""
                         SELECT * FROM cypher('manufacturing', $$
-                            MATCH (w:Wafer {{wafer_id: '{r.get("wafer_id")}'}}),
-                                  (l:Lot {{lot_id: '{r.get("lot_id")}'}})
-                            MERGE (w)-[r:BELONGS_TO]->(l)
-                            SET r.slot_no = {r.get("slot_no", 0)}
-                            RETURN r
-                        $$) AS (r agtype)
+                            MATCH (w:Wafer {{wafer_id: {cy_str(r.get("wafer_id"))}}}),
+                                  (l:Lot {{lot_id: {cy_str(r.get("lot_id"))}}})
+                            MERGE (w)-[rel:BELONGS_TO]->(l)
+                            SET rel.slot_no = {cy_num(r.get("slot_no", 0) or 0)}
+                            RETURN rel
+                        $$) AS (rel agtype)
                     """)
 
         logger.info(f"Sunk {len(records)} wafer records")
