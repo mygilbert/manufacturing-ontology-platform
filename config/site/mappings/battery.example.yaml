@@ -1,0 +1,200 @@
+# 사이트 매핑 예시 — 배터리 프로파일
+#
+# 이 파일을 battery.yaml 로 복사해 사내 실제 값으로 채운다.
+# battery.yaml 은 .gitignore 대상이므로 커밋되지 않는다.
+#
+#   cp config/site/mappings/battery.example.yaml config/site/mappings/battery.yaml
+#
+# 여기 들어가는 테이블/컬럼명은 사내 시스템 구조이므로 영업비밀에 해당한다.
+# 코어 스키마(ontology/schemas/)에는 절대 넣지 않는다.
+
+site: example
+profile: battery
+version: "1.0.0"
+
+# 랜딩 폴더 루트. 워크스테이션에 Parquet 가 떨어지는 위치.
+landing_root: "/path/to/landing"
+
+# 파일 완료 마커. 받는 중인 파일을 읽으면 깨지므로 반드시 확인한다.
+success_marker: "_SUCCESS"
+
+# ----------------------------------------------------------------------
+# 표준 스키마 <- 사내 소스 매핑
+#
+#   path    : landing_root 기준 상대 경로 (glob)
+#   columns : 표준 컬럼명 -> 사내 컬럼명
+#   filter  : 선택. 이 소스에서 걸러낼 조건 (SQL)
+#   const   : 선택. 소스에 없는 표준 컬럼에 넣을 상수
+# ----------------------------------------------------------------------
+
+tables:
+
+  # --- 전극 롤 (연속체) ---
+  rolls:
+    path: "<롤 마스터 폴더>/**/*.parquet"
+    columns:
+      roll_id:         "<롤 ID 컬럼>"
+      electrode_role:  "<양극/음극 구분 컬럼>"       # CATHODE / ANODE 로 정규화 필요
+      material_lot:    "<원자재 로트 컬럼>"
+      length_m:        "<롤 길이 컬럼>"
+      coating_recipe:  "<코팅 레시피 컬럼>"
+      started_at:      "<코팅 시작 시각 컬럼>"
+      equipment_id:    "<코터 설비 ID 컬럼>"
+    # 소스 값이 표준 enum 과 다르면 여기서 변환한다
+    value_maps:
+      electrode_role:
+        "<사내 양극 코드>": CATHODE
+        "<사내 음극 코드>": ANODE
+
+  # --- 전극 공정 측정값 (위치 인덱스) ---
+  # ★ position_m 이 없으면 계보가 롤 단위에서 끊긴다. 아래 note 참조.
+  web_measurements:
+    path: "<FDC 코팅 측정값 폴더>/**/*.parquet"
+    columns:
+      time:               "<측정 시각 컬럼>"
+      roll_id:            "<롤 ID 컬럼>"
+      position_m:         "<롤 내 위치 컬럼>"        # 없으면 null 로 두고 아래 note 참조
+      lane_no:            "<레인 번호 컬럼>"
+      sensor_id:          "<센서 ID 컬럼>"
+      param_id:           "<파라미터 ID 컬럼>"
+      value:              "<측정값 컬럼>"
+      unit:               "<단위 컬럼>"
+      usl:                "<상한 규격 컬럼>"
+      lsl:                "<하한 규격 컬럼>"
+      target:             "<목표값 컬럼>"
+      line_speed_mpm:     "<라인 속도 컬럼>"
+      equipment_id:       "<설비 ID 컬럼>"
+      recipe_id:          "<레시피 ID 컬럼>"
+    const:
+      source_system: "FDC"
+      position_confidence: "MEDIUM"
+    note: >
+      position_m 컬럼이 소스에 없으면 scripts/build_position_map.py 로
+      라인 속도에서 파생시킨다. 그 경우 position_confidence 는 구간별로
+      HIGH/MEDIUM/LOW 가 계산되어 들어간다.
+
+  # --- 파라미터 정규화 ---
+  # 벤더별 param_id 를 표준 observed_property 로 매핑한다.
+  # 설비 간 비교는 반드시 observed_property 로 한다.
+  observed_property_map:
+    "<사내 코팅두께 파라미터 ID>": coating_thickness
+    "<사내 도포중량 파라미터 ID>": coating_weight
+    "<사내 라인속도 파라미터 ID>": line_speed
+    "<사내 웹장력 파라미터 ID>":   web_tension
+    "<사내 건조존온도 파라미터 ID>": drying_temp_zone
+    "<사내 전극밀도 파라미터 ID>": electrode_density
+
+  # --- 전극 Lot (연속 -> 이산 전환점) ---
+  # ★ position_start_m / position_end_m 이 이 매핑에서 가장 중요하다.
+  electrode_lots:
+    path: "<전극 Lot 이력 폴더>/**/*.parquet"
+    columns:
+      electrode_lot_id:  "<전극 LOT ID 컬럼>"
+      electrode_role:    "<양극/음극 구분 컬럼>"
+      roll_id:           "<원본 롤 ID 컬럼>"
+      position_start_m:  "<롤 내 시작 위치 컬럼>"    # 없으면 traceability_level=ROLL_ONLY
+      position_end_m:    "<롤 내 종료 위치 컬럼>"
+      lane_no:           "<슬리팅 레인 컬럼>"
+      sheet_count:       "<시트 수 컬럼>"
+      created_at:        "<Lot 생성 시각 컬럼>"
+      material_lot:      "<원자재 로트 컬럼>"
+    const:
+      traceability_level: "MEASURED"   # 위치 컬럼이 없으면 ROLL_ONLY 로 바꾼다
+    note: >
+      위치 컬럼이 없고 투입 순서만 있는 경우:
+        traceability_level: INFERRED 로 두고
+        순서 + 시트 길이 + 카운트로 위치를 추정한다.
+      추정 근거는 inference_method 에 남긴다.
+
+  # --- 셀 ---
+  cells:
+    path: "<셀 조립 이력 폴더>/**/*.parquet"
+    columns:
+      cell_id:        "<셀 ID 컬럼>"
+      cell_type:      "<셀 형태 컬럼>"
+      cell_model:     "<셀 모델 컬럼>"
+      assembled_at:   "<조립 시각 컬럼>"
+      stacking_equipment_id: "<스태커 설비 ID 컬럼>"
+
+  # --- 전극 Lot -> 셀 계보 (양극/음극 수렴) ---
+  # ★ 이 테이블이 없으면 계보가 전환점에서 끊긴다.
+  supplies_cell:
+    path: "<셀 투입 이력 폴더>/**/*.parquet"
+    columns:
+      electrode_lot_id:  "<투입된 전극 LOT ID 컬럼>"
+      cell_id:           "<셀 ID 컬럼>"
+      electrode_role:    "<양극/음극 구분 컬럼>"
+      sheet_count:       "<투입 시트 수 컬럼>"
+      assembled_at:      "<조립 시각 컬럼>"
+    const:
+      traceability_level: "MEASURED"
+      spans_lot_boundary: false
+    note: >
+      셀 하나에 양극/음극 Lot 이 각각 물리므로 셀당 2행 이상이 정상이다.
+      1행뿐이면 한쪽 전극 계보가 누락된 것이다.
+
+  # --- 셀 시험 (EOL 용량 등) ---
+  cell_tests:
+    path: "<EOL 시험 결과 폴더>/**/*.parquet"
+    columns:
+      cell_id:    "<셀 ID 컬럼>"
+      test_type:  "<시험 항목 컬럼>"
+      value:      "<측정값 컬럼>"
+      unit:       "<단위 컬럼>"
+      spec_min:   "<하한 규격 컬럼>"
+      result:     "<판정 컬럼>"
+      tested_at:  "<시험 시각 컬럼>"
+      formation_channel: "<화성 채널 컬럼>"
+    value_maps:
+      test_type:
+        "<사내 용량시험 코드>": EOL_CAPACITY
+
+  # --- 모듈 / 팩 ---
+  modules:
+    path: "<모듈 이력 폴더>/**/*.parquet"
+    columns:
+      module_id:    "<모듈 ID 컬럼>"
+      module_model: "<모듈 모델 컬럼>"
+
+  module_cells:
+    path: "<모듈 투입 이력 폴더>/**/*.parquet"
+    columns:
+      cell_id:   "<셀 ID 컬럼>"
+      module_id: "<모듈 ID 컬럼>"
+
+  packs:
+    path: "<팩 이력 폴더>/**/*.parquet"
+    columns:
+      pack_id:    "<팩 ID 컬럼>"
+      pack_model: "<팩 모델 컬럼>"
+
+  pack_modules:
+    path: "<팩 투입 이력 폴더>/**/*.parquet"
+    columns:
+      module_id: "<모듈 ID 컬럼>"
+      pack_id:   "<팩 ID 컬럼>"
+
+# ----------------------------------------------------------------------
+# 설비 상태 매핑 (사내 코드 -> ISO 22400 기반 6상태)
+# ----------------------------------------------------------------------
+equipment_state_map:
+  "<사내 가동 코드>":   PRODUCTIVE
+  "<사내 대기 코드>":   STANDBY
+  "<사내 시험 코드>":   ENGINEERING
+  "<사내 PM 코드>":     SCHEDULED_DOWNTIME
+  "<사내 고장 코드>":   UNSCHEDULED_DOWNTIME
+  "<사내 비조업 코드>": NON_SCHEDULED
+
+# ----------------------------------------------------------------------
+# 비식별 프로파일 반출 설정
+# scripts/profile_site_data.py 가 이 설정을 따른다.
+# ----------------------------------------------------------------------
+profiling:
+  # 프로파일 산출물에서 마스킹할 컬럼 (실제 값이 밖으로 나가면 안 되는 것)
+  mask_columns:
+    - "<작업자 ID 컬럼>"
+    - "<고객/제품 식별 컬럼>"
+  # 샘플 값을 몇 개까지 포함할지 (0 이면 값은 전혀 포함하지 않는다)
+  sample_values: 0
+  # 수치 컬럼의 분포 요약을 포함할지
+  include_numeric_summary: true

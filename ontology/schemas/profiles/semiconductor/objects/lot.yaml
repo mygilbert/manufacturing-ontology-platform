@@ -167,18 +167,23 @@ indexes:
 
 # 데이터 소스 매핑
 sourceMapping:
-  mes:
-    table: "MES_LOT_MASTER"
-    keyColumn: "LOT_ID"
-    columnMapping:
-      lot_id: "LOT_ID"
-      product_code: "PRODUCT_ID"
-      product_name: "PRODUCT_NAME"
-      quantity: "LOT_QTY"
-      priority: "PRIORITY_CODE"
-      status: "LOT_STATUS"
-      current_step: "CURR_STEP_ID"
-      start_time: "LOT_START_TIME"
-      end_time: "LOT_END_TIME"
-      fab_id: "FAB_ID"
-      route_id: "ROUTE_ID"
+  _note: >
+    실제 테이블/컬럼명은 사내 시스템 구조이므로 여기 두지 않는다.
+    config/site/mappings/ 오버레이로 주입한다 (docs/09_배포_경계.md).
+    아래는 구조를 보이기 위한 예시이며 사내 실제 값이 아니다.
+  _example:
+    mes:
+      table: "MES_LOT_MASTER"
+      keyColumn: "LOT_ID"
+      columnMapping:
+        lot_id: "LOT_ID"
+        product_code: "PRODUCT_ID"
+        product_name: "PRODUCT_NAME"
+        quantity: "LOT_QTY"
+        priority: "PRIORITY_CODE"
+        status: "LOT_STATUS"
+        current_step: "CURR_STEP_ID"
+        start_time: "LOT_START_TIME"
+        end_time: "LOT_END_TIME"
+        fab_id: "FAB_ID"
+        route_id: "ROUTE_ID"

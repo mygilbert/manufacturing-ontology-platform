@@ -154,22 +154,27 @@ indexes:
 
 # 데이터 소스 매핑
 sourceMapping:
-  mes:
-    table: "MES_PROCESS_MASTER"
-    keyColumn: "PROCESS_ID"
-    columnMapping:
-      process_id: "PROCESS_ID"
-      name: "PROCESS_NAME"
-      category: "PROCESS_TYPE"
-      sequence: "SEQ_NO"
-      route_id: "ROUTE_ID"
-      target_cycle_time: "TARGET_CT"
-  spc:
-    table: "SPC_PROCESS_SPEC"
-    keyColumn: "PROCESS_ID"
-    columnMapping:
-      spec_limits.usl: "USL"
-      spec_limits.lsl: "LSL"
-      spec_limits.target: "TARGET"
-      control_limits.ucl: "UCL"
-      control_limits.lcl: "LCL"
+  _note: >
+    실제 테이블/컬럼명은 사내 시스템 구조이므로 여기 두지 않는다.
+    config/site/mappings/ 오버레이로 주입한다 (docs/09_배포_경계.md).
+    아래는 구조를 보이기 위한 예시이며 사내 실제 값이 아니다.
+  _example:
+    mes:
+      table: "MES_PROCESS_MASTER"
+      keyColumn: "PROCESS_ID"
+      columnMapping:
+        process_id: "PROCESS_ID"
+        name: "PROCESS_NAME"
+        category: "PROCESS_TYPE"
+        sequence: "SEQ_NO"
+        route_id: "ROUTE_ID"
+        target_cycle_time: "TARGET_CT"
+    spc:
+      table: "SPC_PROCESS_SPEC"
+      keyColumn: "PROCESS_ID"
+      columnMapping:
+        spec_limits.usl: "USL"
+        spec_limits.lsl: "LSL"
+        spec_limits.target: "TARGET"
+        control_limits.ucl: "UCL"
+        control_limits.lcl: "LCL"

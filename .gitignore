@@ -38,3 +38,17 @@ analytics/sample_data/
 
 # 배치 랜딩 폴더 (워크스테이션 로컬)
 landing/
+
+# 사이트 오버레이 (사내 고유 정보). 예시 파일과 README 만 추적한다.
+# git 은 상위 디렉토리가 제외돼 있으면 하위 부정 규칙을 보지 않으므로,
+# 디렉토리를 먼저 되살린 뒤 파일 패턴을 부정한다.
+config/site/**
+!config/site/mappings/
+!config/site/knowledge/
+!config/site/secrets/
+!config/site/README.md
+!config/site/*.example.*
+!config/site/**/*.example.*
+
+# 데이터 프로파일 산출물 (비식별이더라도 기본 제외)
+profiles_out/

@@ -167,7 +167,36 @@ ontology/schemas/
 | **[06_표준_적용_가이드](docs/06_표준_적용_가이드.md)** | SEMI/ISA-95/SOSA 적용, 관계 메타데이터 규약 |
 | **[07_개선_로드맵](docs/07_개선_로드맵.md)** | 실데이터 연동 전 과제, 배치/스트리밍 판단 기준 |
 | **[08_액션_계층](docs/08_액션_계층.md)** | Kinetic Layer - 상태 변경의 유일한 경로, 권한/감사/시뮬레이션 |
+| **[09_배포_경계](docs/09_배포_경계.md)** | 코어와 사이트의 분리, 반출 가능·불가 기준, 기계적 방어 |
 | **[10_배터리_추적성_설계](docs/10_배터리_추적성_설계.md)** | 연속↔이산 계보, 전극 Lot 전환점, 추적 신뢰도, 여권 연계 |
+
+## 사내 데이터 연결
+
+사내 실데이터가 이 리포지토리에 닿기 전에 경계를 그어 둔다.
+코어(범용 프레임워크)와 사이트(사내 고유 정보)를 물리적으로 분리하며,
+`config/site/**` 는 `.gitignore` 대상이다.
+
+```bash
+# 1. 반출 경계 훅 설치 (한 번만)
+git config core.hooksPath .githooks
+
+# 2. 사이트 오버레이 준비 (둘 다 커밋되지 않는다)
+cp config/site/mappings/battery.example.yaml config/site/mappings/battery.yaml
+cp config/site/leak_patterns.example.txt      config/site/leak_patterns.txt
+
+# 3. 실데이터 구조 파악 — 비식별 요약만 산출한다
+pip install duckdb pyarrow
+python scripts/profile_site_data.py --landing /path/to/landing
+
+# 4. 보고서 검토 후 매핑 완성
+#    profiles_out/site_profile.md
+```
+
+프로파일러는 **실제 값을 내보내지 않는다.** 컬럼명·타입·널 비율·고유값 개수·
+시각 범위·수치 요약통계만 담으며, 온톨로지 계보를 만들 수 있는 상태인지
+10개 항목으로 진단한다 (롤 위치 유무, 전극 Lot ↔ 롤 구간 연결, 양극/음극 구분 등).
+
+판단 기준과 기계적 방어는 **[docs/09_배포_경계.md](docs/09_배포_경계.md)** 참조.
 
 ## 계보 데모 — 설계가 실제로 작동하는지 확인
 

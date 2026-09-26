@@ -1,0 +1,4 @@
+#!/bin/sh
+# 반출 경계 검사 — 사내 고유 정보가 커밋에 섞이지 않게 막는다
+# 설치:  git config core.hooksPath .githooks
+exec python3 "$(git rev-parse --show-toplevel)/scripts/check_leaks.py" --staged

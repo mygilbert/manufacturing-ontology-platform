@@ -253,19 +253,24 @@ indexes:
 
 # 데이터 소스 매핑
 sourceMapping:
-  mes:
-    table: "MES_CELL_MASTER"
-    keyColumn: "CELL_ID"
-    columnMapping:
-      cell_id: "CELL_ID"
-      source_roll_id: "ROLL_ID"
-      cell_type: "CELL_TYPE"
-      cell_model: "MODEL_NAME"
-      status: "CELL_STATUS"
-      capacity_ah: "CAPACITY"
-      voltage_v: "VOLTAGE"
-      resistance_mohm: "RESISTANCE"
-      grade: "GRADE"
-      module_id: "MODULE_ID"
-      created_time: "CREATE_TIME"
-      line_id: "LINE_ID"
+  _note: >
+    실제 테이블/컬럼명은 사내 시스템 구조이므로 여기 두지 않는다.
+    config/site/mappings/ 오버레이로 주입한다 (docs/09_배포_경계.md).
+    아래는 구조를 보이기 위한 예시이며 사내 실제 값이 아니다.
+  _example:
+    mes:
+      table: "MES_CELL_MASTER"
+      keyColumn: "CELL_ID"
+      columnMapping:
+        cell_id: "CELL_ID"
+        source_roll_id: "ROLL_ID"
+        cell_type: "CELL_TYPE"
+        cell_model: "MODEL_NAME"
+        status: "CELL_STATUS"
+        capacity_ah: "CAPACITY"
+        voltage_v: "VOLTAGE"
+        resistance_mohm: "RESISTANCE"
+        grade: "GRADE"
+        module_id: "MODULE_ID"
+        created_time: "CREATE_TIME"
+        line_id: "LINE_ID"

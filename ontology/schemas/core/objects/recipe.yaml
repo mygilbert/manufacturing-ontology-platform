@@ -190,23 +190,28 @@ indexes:
 
 # 데이터 소스 매핑
 sourceMapping:
-  fdc:
-    table: "FDC_RECIPE_MASTER"
-    keyColumn: "RECIPE_ID"
-    columnMapping:
-      recipe_id: "RECIPE_ID"
-      recipe_name: "RECIPE_NAME"
-      version: "RECIPE_VER"
-      status: "RECIPE_STATUS"
-      equipment_type: "EQUIP_TYPE"
-      process_type: "PROCESS_TYPE"
-      created_at: "CREATE_TIME"
-      updated_at: "UPDATE_TIME"
-  mes:
-    table: "MES_RECIPE"
-    keyColumn: "RCP_ID"
-    columnMapping:
-      recipe_id: "RCP_ID"
-      recipe_name: "RCP_NAME"
-      version: "RCP_VER"
-      total_duration: "PROCESS_TIME"
+  _note: >
+    실제 테이블/컬럼명은 사내 시스템 구조이므로 여기 두지 않는다.
+    config/site/mappings/ 오버레이로 주입한다 (docs/09_배포_경계.md).
+    아래는 구조를 보이기 위한 예시이며 사내 실제 값이 아니다.
+  _example:
+    fdc:
+      table: "FDC_RECIPE_MASTER"
+      keyColumn: "RECIPE_ID"
+      columnMapping:
+        recipe_id: "RECIPE_ID"
+        recipe_name: "RECIPE_NAME"
+        version: "RECIPE_VER"
+        status: "RECIPE_STATUS"
+        equipment_type: "EQUIP_TYPE"
+        process_type: "PROCESS_TYPE"
+        created_at: "CREATE_TIME"
+        updated_at: "UPDATE_TIME"
+    mes:
+      table: "MES_RECIPE"
+      keyColumn: "RCP_ID"
+      columnMapping:
+        recipe_id: "RCP_ID"
+        recipe_name: "RCP_NAME"
+        version: "RCP_VER"
+        total_duration: "PROCESS_TIME"

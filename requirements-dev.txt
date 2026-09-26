@@ -17,3 +17,5 @@ httpx>=0.25.0
 # DB 구축 없이 Parquet 를 직접 질의한다
 duckdb>=1.0.0
 pyarrow>=14.0.0
+pandas>=2.0.0
+numpy>=1.24.0

@@ -205,20 +205,25 @@ indexes:
 
 # 데이터 소스 매핑 (레거시 시스템)
 sourceMapping:
-  fdc:
-    table: "FDC_EQUIPMENT_MASTER"
-    keyColumn: "EQUIP_ID"
-    columnMapping:
-      equipment_id: "EQUIP_ID"
-      name: "EQUIP_NAME"
-      type: "EQUIP_TYPE"
-      status: "EQUIP_STATUS"
-      location: "EQUIP_LOCATION"
-  mes:
-    table: "MES_EQUIPMENT"
-    keyColumn: "EQP_ID"
-    columnMapping:
-      equipment_id: "EQP_ID"
-      name: "EQP_NAME"
-      manufacturer: "VENDOR"
-      model: "MODEL_NO"
+  _note: >
+    실제 테이블/컬럼명은 사내 시스템 구조이므로 여기 두지 않는다.
+    config/site/mappings/ 오버레이로 주입한다 (docs/09_배포_경계.md).
+    아래는 구조를 보이기 위한 예시이며 사내 실제 값이 아니다.
+  _example:
+    fdc:
+      table: "FDC_EQUIPMENT_MASTER"
+      keyColumn: "EQUIP_ID"
+      columnMapping:
+        equipment_id: "EQUIP_ID"
+        name: "EQUIP_NAME"
+        type: "EQUIP_TYPE"
+        status: "EQUIP_STATUS"
+        location: "EQUIP_LOCATION"
+    mes:
+      table: "MES_EQUIPMENT"
+      keyColumn: "EQP_ID"
+      columnMapping:
+        equipment_id: "EQP_ID"
+        name: "EQP_NAME"
+        manufacturer: "VENDOR"
+        model: "MODEL_NO"

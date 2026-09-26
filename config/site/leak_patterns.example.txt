@@ -1,0 +1,24 @@
+# 사이트 고유 패턴 목록 (정규식, 한 줄에 하나)
+#
+# 이 파일을 leak_patterns.txt 로 복사해 사내 실제 패턴을 채운다.
+# leak_patterns.txt 는 그 자체가 사내 정보이므로 .gitignore 대상이다.
+#
+#   cp config/site/leak_patterns.example.txt config/site/leak_patterns.txt
+#
+# 여기 적은 패턴이 코어 파일에서 발견되면 커밋이 막힌다.
+
+# 사내 설비 ID 접두어
+# ^\s*.*\bEQ[A-Z]{2}-\d{4}
+
+# 사내 레거시 테이블명
+# \bTB_[A-Z_]{4,}\b
+# \bMES_[A-Z_]{4,}\b
+
+# 사내 파라미터 ID 체계
+# \bPRM\d{6}\b
+
+# 사내 도메인/호스트
+# [a-z0-9-]+\.corp\.example\.com
+
+# 사내 라인/공장 코드
+# \bLINE-[A-Z]\d{2}\b

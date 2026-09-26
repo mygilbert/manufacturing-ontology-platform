@@ -118,14 +118,19 @@ sosaMapping:
 # 데이터 소스 매핑
 # TODO: 사내 실제 테이블/컬럼명으로 교체할 것
 sourceMapping:
-  fdc:
-    table: "<파라미터 마스터 테이블>"
-    keyColumn: "<파라미터 ID 컬럼>"
-    columnMapping:
-      param_id: "<파라미터 ID 컬럼>"
-      unit: "<단위 컬럼>"
-      equipment_id: "<설비 ID 컬럼>"
-      equipment_module_id: "<모듈/채널/레인 컬럼>"
-    note: >
-      파라미터 마스터가 없으면 측정값에서 distinct PARAM_ID로 도출하고
-      observed_property는 별도 매핑표로 사람이 채운다.
+  _note: >
+    실제 테이블/컬럼명은 사내 시스템 구조이므로 여기 두지 않는다.
+    config/site/mappings/ 오버레이로 주입한다 (docs/09_배포_경계.md).
+    아래는 구조를 보이기 위한 예시이며 사내 실제 값이 아니다.
+  _example:
+    fdc:
+      table: "<파라미터 마스터 테이블>"
+      keyColumn: "<파라미터 ID 컬럼>"
+      columnMapping:
+        param_id: "<파라미터 ID 컬럼>"
+        unit: "<단위 컬럼>"
+        equipment_id: "<설비 ID 컬럼>"
+        equipment_module_id: "<모듈/채널/레인 컬럼>"
+      note: >
+        파라미터 마스터가 없으면 측정값에서 distinct PARAM_ID로 도출하고
+        observed_property는 별도 매핑표로 사람이 채운다.

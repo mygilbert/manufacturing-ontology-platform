@@ -247,28 +247,33 @@ indexes:
 
 # 데이터 소스 매핑
 sourceMapping:
-  fdc:
-    table: "FDC_ALARM_HISTORY"
-    keyColumn: "ALARM_ID"
-    columnMapping:
-      alarm_id: "ALARM_ID"
-      alarm_code: "ALARM_CODE"
-      alarm_name: "ALARM_NAME"
-      severity: "ALARM_LEVEL"
-      equipment_id: "EQUIP_ID"
-      lot_id: "LOT_ID"
-      occurred_at: "ALARM_TIME"
-      message: "ALARM_MSG"
-      triggered_value: "ALARM_VALUE"
-      threshold_value: "THRESHOLD"
-  spc:
-    table: "SPC_ALARM_LOG"
-    keyColumn: "LOG_ID"
-    columnMapping:
-      alarm_id: "LOG_ID"
-      alarm_code: "RULE_CODE"
-      severity: "SEVERITY"
-      equipment_id: "EQUIP_ID"
-      process_id: "PROCESS_ID"
-      occurred_at: "OCCUR_TIME"
-      message: "DESCRIPTION"
+  _note: >
+    실제 테이블/컬럼명은 사내 시스템 구조이므로 여기 두지 않는다.
+    config/site/mappings/ 오버레이로 주입한다 (docs/09_배포_경계.md).
+    아래는 구조를 보이기 위한 예시이며 사내 실제 값이 아니다.
+  _example:
+    fdc:
+      table: "FDC_ALARM_HISTORY"
+      keyColumn: "ALARM_ID"
+      columnMapping:
+        alarm_id: "ALARM_ID"
+        alarm_code: "ALARM_CODE"
+        alarm_name: "ALARM_NAME"
+        severity: "ALARM_LEVEL"
+        equipment_id: "EQUIP_ID"
+        lot_id: "LOT_ID"
+        occurred_at: "ALARM_TIME"
+        message: "ALARM_MSG"
+        triggered_value: "ALARM_VALUE"
+        threshold_value: "THRESHOLD"
+    spc:
+      table: "SPC_ALARM_LOG"
+      keyColumn: "LOG_ID"
+      columnMapping:
+        alarm_id: "LOG_ID"
+        alarm_code: "RULE_CODE"
+        severity: "SEVERITY"
+        equipment_id: "EQUIP_ID"
+        process_id: "PROCESS_ID"
+        occurred_at: "OCCUR_TIME"
+        message: "DESCRIPTION"
