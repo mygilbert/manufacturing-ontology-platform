@@ -1,0 +1,36 @@
+# HAS_SEGMENT Link Type  (배터리 프로파일)
+# 전극 롤이 위치 구간을 포함하는 관계
+
+linkType: HAS_SEGMENT
+version: "1.0.0"
+description: "전극 롤이 분석 단위 구간(WebSegment)을 포함하는 관계"
+
+source:
+  objectType: Roll
+  cardinality: 1
+
+target:
+  objectType: WebSegment
+  cardinality: N
+
+properties:
+  position_start_m:
+    type: number
+    description: "구간 시작 위치 (m)"
+    required: true
+    minimum: 0
+
+  position_end_m:
+    type: number
+    description: "구간 종료 위치 (m)"
+    required: true
+    minimum: 0
+
+  lane_no:
+    type: integer
+    description: "폭 방향 레인 번호"
+    required: false
+    minimum: 1
+
+indexes:
+  - fields: [position_start_m]

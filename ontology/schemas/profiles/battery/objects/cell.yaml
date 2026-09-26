@@ -2,8 +2,8 @@
 # 배터리 셀을 나타내는 온톨로지 객체
 
 objectType: Cell
-version: "1.0.0"
-description: "배터리 셀 단위 (Roll에서 절단되어 생성)"
+version: "2.0.0"
+description: "배터리 셀 단위. 양극/음극 전극 Lot 이 수렴하는 지점"
 
 # 기본 키
 primaryKey: cell_id
@@ -17,12 +17,36 @@ properties:
     indexed: true
     example: "C20231201001-0001"
 
-  source_roll_id:
+  # [모델 수정 v2.0.0]
+  # 이전 버전은 source_roll_id 단일 필드로 "원본 롤 1개"를 가정했다.
+  # 실제로는 셀 하나에 양극 롤과 음극 롤이 각각 들어가고, 그 사이에
+  # 전극 Lot 단계가 있다. 계보는 관계로 표현하며 단일 FK 로 담을 수 없다.
+  #
+  #   Cell <--SUPPLIES_CELL-- ElectrodeLot(CATHODE) <--PRODUCES_LOT-- Roll
+  #        <--SUPPLIES_CELL-- ElectrodeLot(ANODE)   <--PRODUCES_LOT-- Roll
+  #
+  # 아래 두 필드는 질의 편의를 위한 비정규화 캐시이며, 진실의 출처는 관계다.
+
+  cathode_lot_id:
     type: string
-    description: "원본 Roll ID"
-    required: true
+    description: "투입된 양극 전극 Lot ID (관계의 비정규화 캐시)"
+    required: false
     indexed: true
-    example: "R20231201001"
+
+  anode_lot_id:
+    type: string
+    description: "투입된 음극 전극 Lot ID (관계의 비정규화 캐시)"
+    required: false
+    indexed: true
+
+  genealogy_complete:
+    type: boolean
+    description: >
+      양극/음극 계보가 모두 롤 위치까지 연결됐는가.
+      false 인 셀은 근본원인 분석과 배터리 여권 대응에서 한계가 있다.
+      이 비율 자체가 추적성 수준의 핵심 지표다.
+    required: true
+    default: false
 
   cell_type:
     type: enum

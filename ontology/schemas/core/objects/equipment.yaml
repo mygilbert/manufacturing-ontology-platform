@@ -1,28 +1,34 @@
 # Equipment Object Type
-# 설비/장비를 나타내는 온톨로지 객체
+# 설비/장비를 나타내는 온톨로지 객체 (도메인 무관 코어)
 #
 # 참조 표준
-#   - SEMI E120 (CEM): 설비 구조 객체 모델. 설비는 Module / Subsystem / IODevice로
-#     분해된다. 챔버는 별도 객체(Chamber)로 분리하고 HAS_MODULE 관계로 연결한다.
-#   - SEMI E10 / E58: 설비 상태 모델. status 속성이 이 6상태를 따른다.
-#   - ISA-95 / IEC 62264: Equipment는 Work Unit 계층에 대응한다.
-#   자세한 내용은 docs/06_표준_적용_가이드.md 참조.
+#   - ISA-95 / IEC 62264: Equipment는 Work Unit 계층에 대응한다
+#   - ISO 22400-2: status 의 각 상태가 OEE 산출용 시간 요소에 대응한다
+#   - AAS (Asset Administration Shell): 설비 자산의 디지털 표현
+#
+# 설비 타입(type) enum은 도메인마다 다르므로 프로파일에서 정의한다.
+#   배터리: ontology/schemas/profiles/battery/
+#   반도체: ontology/schemas/profiles/semiconductor/
+#
+# [이전 버전 주의] v2.0.0 은 SEMI E10 을 준거로 삼았다. SEMI 표준은
+# 반도체 전용이므로 배터리 도메인에는 맞지 않는다. 6상태 모델 자체는
+# 업계 공통으로 쓸 만하므로 유지하되, 준거를 ISO 22400 시간 요소로 옮겼다.
 
 objectType: Equipment
-version: "2.0.0"
+version: "3.0.0"
 description: "제조 공정에서 사용되는 설비/장비를 나타냅니다"
 
 # 준거 표준
 standards:
-  - id: SEMI-E120
-    name: "Common Equipment Model (CEM)"
-    appliesTo: "설비 구조 분해 (Module/Subsystem/IODevice)"
-  - id: SEMI-E10
-    name: "Equipment Reliability, Availability, Maintainability (RAM)"
-    appliesTo: "status 속성의 상태 정의"
+  - id: ISO-22400-2
+    name: "KPIs for manufacturing operations management"
+    appliesTo: "status 상태와 OEE 시간 요소 매핑"
   - id: ISA-95
     name: "IEC 62264 Enterprise-Control Integration"
     appliesTo: "설비 계층 (Enterprise/Site/Area/WorkCenter/WorkUnit)"
+  - id: AAS
+    name: "Asset Administration Shell"
+    appliesTo: "설비 자산 디지털 표현 (배터리 여권 연계)"
 
 # 기본 키
 primaryKey: equipment_id
@@ -43,39 +49,59 @@ properties:
     example: "Etcher-01"
 
   type:
+    type: string
+    description: >
+      설비 유형. 허용값은 도메인 프로파일에서 정의한다.
+      배터리:  MIXER / COATER / DRYER / CALENDER / SLITTER / NOTCHER /
+               STACKER / WINDER / WELDER / FILLER / FORMATION / AGING / EOL_TESTER
+      반도체:  DRY_ETCH / CVD / PVD / LITHO / CMP / DIFFUSION / ...
+    required: true
+    indexed: true
+    example: "COATER"
+
+  domain_profile:
     type: enum
-    description: "설비 유형"
+    description: "이 설비가 속한 도메인 프로파일"
     required: true
     values:
-      - DRY_ETCH
-      - WET_ETCH
-      - CVD
-      - PVD
-      - LITHO
-      - CMP
-      - DIFFUSION
-      - ION_IMPLANT
-      - METROLOGY
-      - CLEANING
-    example: "DRY_ETCH"
+      - battery
+      - semiconductor
+    default: "battery"
 
   status:
     type: enum
     description: >
-      설비 상태. SEMI E10 6기본상태를 그대로 따른다.
-      자체 용어를 쓰면 사내 기존 가동률/OEE 집계와 수치가 어긋나므로
-      반드시 E10 명칭을 유지할 것.
+      설비 상태. 6상태 모델은 SEMI E10 에서 비롯했으나 업계 공통으로 통용된다.
+      각 상태가 ISO 22400 의 어느 시간 요소로 집계되는지를 함께 정의해
+      가동률/OEE 가 사내 기존 집계와 맞물리도록 한다.
+
+      자체 용어(RUNNING/IDLE/PM/DOWN)를 쓰면 기존 리포트와 수치가 어긋나
+      "어느 쪽이 맞느냐"는 논쟁이 반드시 생긴다.
     required: true
-    standard: SEMI-E10
+    standard: ISO-22400-2
     values:
-      - PRODUCTIVE            # 의도된 기능 수행 중 (정규 생산, 재작업, 생산테스트 포함)
+      - PRODUCTIVE            # 의도된 기능 수행 중 (정규 생산, 재작업, 생산테스트)
       - STANDBY               # 수행 가능하나 미가동 (작업자/자재/지원도구 대기)
-      - ENGINEERING           # 엔지니어링 실험 수행 중 (공정/설비 엔지니어링)
+      - ENGINEERING           # 엔지니어링 실험 수행 중
       - SCHEDULED_DOWNTIME    # 계획된 비가동 (예방정비 등)
       - UNSCHEDULED_DOWNTIME  # 계획되지 않은 비가동 (고장, 긴급정비)
-      - NON_SCHEDULED         # 비조업 시간 (미배정 교대, 설비 미설치/셧다운)
+      - NON_SCHEDULED         # 비조업 시간 (미배정 교대, 셧다운)
     default: "STANDBY"
-    # 기존 자체 코드 -> SEMI E10 매핑 (레거시 데이터 적재 시 사용)
+
+    # ISO 22400 시간 요소 매핑 (OEE 산출 입력)
+    #   APT  = Actual Production Time      (가동 시간)
+    #   ADET = Actual Delay Time           (지연 시간)
+    #   ADOT = Actual Down Time            (비가동 시간)
+    #   PBT  = Planned Busy Time 에 미포함  (비조업)
+    iso22400Mapping:
+      PRODUCTIVE: APT
+      STANDBY: ADET
+      ENGINEERING: ADET
+      SCHEDULED_DOWNTIME: ADOT
+      UNSCHEDULED_DOWNTIME: ADOT
+      NON_SCHEDULED: NOT_IN_PBT
+
+    # 기존 자체 코드 -> 표준 상태 매핑 (레거시 데이터 적재 시 사용)
     legacyMapping:
       RUNNING: PRODUCTIVE
       IDLE: STANDBY
@@ -83,11 +109,12 @@ properties:
       DOWN: UNSCHEDULED_DOWNTIME
       ENGINEERING: ENGINEERING
 
-  e10_substate:
+  substate:
     type: string
     description: >
       E10 기본상태 하위의 사내 세부 사유 코드.
       기본상태는 표준으로 고정하고, 사내 고유 구분은 여기에 담는다.
+      (이전 이름: e10_substate)
     required: false
     example: "WAIT_OPERATOR"
 
@@ -133,25 +160,12 @@ properties:
     required: false
     example: ["OXIDE_ETCH", "POLY_ETCH", "METAL_ETCH"]
 
-# 시계열 데이터 (FDC 파라미터)
+# 시계열 데이터
+# 실제 파라미터 목록은 도메인 프로파일과 사이트 설정에서 정의한다.
+# (센서/관측 모델은 core/objects/sensor.yaml 참조)
 timeseries:
   enabled: true
-  parameters:
-    - name: chamber_pressure
-      unit: "mTorr"
-      description: "챔버 압력"
-    - name: rf_power
-      unit: "W"
-      description: "RF 파워"
-    - name: gas_flow
-      unit: "sccm"
-      description: "가스 유량"
-    - name: temperature
-      unit: "C"
-      description: "온도"
-    - name: etch_rate
-      unit: "A/min"
-      description: "식각 속도"
+  parametersDefinedIn: "profiles/<domain>/ + config/site/"
 
 # 관계 정의 (이 객체에서 나가는 관계)
 outgoingLinks:

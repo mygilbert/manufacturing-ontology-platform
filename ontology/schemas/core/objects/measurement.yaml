@@ -8,7 +8,7 @@
 #
 #   그래프에는 "무엇이 무엇과 어떻게 연결되는가"(Equipment/Chamber/Lot/Sensor와
 #   그 관계)만 담고, 측정값 자체는 TimescaleDB 하이퍼테이블에 두고
-#   (sensor_id, chamber_id, timestamp) 키로 참조한다.
+#   (sensor_id, equipment_module_id, timestamp) 키로 참조한다.
 #
 #   이 스키마는 TimescaleDB 테이블의 논리 모델이자 그래프와의 연결 규약이다.
 #
@@ -42,13 +42,13 @@ sosaMapping:
   properties:
     sensor_id: "sosa:madeBySensor"
     observed_property: "sosa:observedProperty"
-    chamber_id: "sosa:hasFeatureOfInterest"
+    equipment_module_id: "sosa:hasFeatureOfInterest"
     timestamp: "sosa:resultTime"
     value: "sosa:hasSimpleResult"
 
 # 기본 키 (복합 키)
 primaryKey: measurement_id
-compositeKey: [equipment_id, wafer_id, param_id, timestamp]
+compositeKey: [equipment_id, produced_unit_id, param_id, timestamp]
 
 # 속성 정의
 properties:
@@ -74,7 +74,7 @@ properties:
     description: "관측을 수행한 센서 ID (sosa:madeBySensor). sensor.yaml 참조"
     required: true
     indexed: true
-    example: "EQP-ETCH-001.CH2.TEMP"
+    example: "COATER-01.LANE2.THICKNESS"
 
   observed_property:
     type: string
@@ -83,11 +83,11 @@ properties:
       param_id는 벤더별로 다르므로, 설비 간 비교는 이 값으로 한다.
     required: true
     indexed: true
-    example: "chamber_temperature"
+    example: "coating_thickness"
 
-  chamber_id:
+  equipment_module_id:
     type: string
-    description: "관측 대상 챔버 ID (sosa:hasFeatureOfInterest)"
+    description: "관측 대상 설비 모듈 ID (sosa:hasFeatureOfInterest)"
     required: false
     indexed: true
 
@@ -97,9 +97,11 @@ properties:
     required: true
     indexed: true
 
-  wafer_id:
+  produced_unit_id:
     type: string
-    description: "측정 대상 웨이퍼 ID"
+    description: >
+      측정 대상 생산 단위 ID. 도메인별로 의미가 다르다.
+      배터리: Cell / ElectrodeLot,  반도체: Wafer
     required: false
     indexed: true
 
@@ -222,7 +224,7 @@ properties:
 
   site_id:
     type: string
-    description: "측정 사이트 ID (웨이퍼 내 위치)"
+    description: "측정 사이트 ID (생산 단위 내 위치)"
     required: false
 
 # 관계 정의
@@ -232,8 +234,8 @@ outgoingLinks:
     description: "측정이 수행된 설비"
 
   - linkType: MEASURED_FOR
-    targetObject: Wafer
-    description: "측정 대상 웨이퍼"
+    targetObject: ProducedUnit   # 프로파일에서 구체화 (Cell / Wafer)
+    description: "측정 대상 생산 단위"
 
   - linkType: PART_OF_PROCESS
     targetObject: Process
@@ -257,7 +259,7 @@ indexes:
     unique: true
   - fields: [equipment_id, param_id, timestamp]
     unique: false
-  - fields: [wafer_id, timestamp]
+  - fields: [produced_unit_id, timestamp]
     unique: false
   - fields: [process_id, param_id, timestamp]
     unique: false
@@ -272,7 +274,7 @@ sourceMapping:
     columnMapping:
       measurement_id: "VALUE_ID"
       equipment_id: "EQUIP_ID"
-      wafer_id: "WAFER_ID"
+      produced_unit_id: "WAFER_ID"
       lot_id: "LOT_ID"
       param_id: "PARAM_ID"
       param_name: "PARAM_NAME"
@@ -287,7 +289,7 @@ sourceMapping:
     columnMapping:
       measurement_id: "MEAS_ID"
       equipment_id: "EQUIP_ID"
-      wafer_id: "WAFER_ID"
+      produced_unit_id: "WAFER_ID"
       process_id: "PROCESS_ID"
       param_id: "ITEM_ID"
       param_name: "ITEM_NAME"

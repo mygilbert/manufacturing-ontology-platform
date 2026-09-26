@@ -357,7 +357,7 @@ class TestRealSchemas:
         for name, d in definitions.items():
             assert d.allowed_roles, f"{name}에 permissions.roles 가 없습니다"
 
-    def test_e10_transitions_are_defined(self, definitions):
+    def test_state_transitions_are_defined(self, definitions):
         transitions = definitions["UpdateEquipmentState"].transitions
         assert transitions is not None
         # 정비/고장 종료 후 곧바로 생산으로 갈 수 없어야 한다
@@ -365,14 +365,14 @@ class TestRealSchemas:
         assert "PRODUCTIVE" not in transitions["UNSCHEDULED_DOWNTIME"]
         assert "STANDBY" in transitions["UNSCHEDULED_DOWNTIME"]
 
-    def test_e10_states_match_equipment_schema(self, definitions):
+    def test_states_match_equipment_schema(self, definitions):
         import yaml
         eq = yaml.safe_load(
-            open("ontology/schemas/objects/equipment.yaml", encoding="utf-8")
+            open("ontology/schemas/core/objects/equipment.yaml", encoding="utf-8")
         )
         schema_states = set(eq["properties"]["status"]["values"])
         action_states = set(definitions["UpdateEquipmentState"].parameters["to_state"].values)
-        assert schema_states == action_states, "설비 스키마와 액션의 E10 상태 목록이 다릅니다"
+        assert schema_states == action_states, "설비 스키마와 액션의 상태 목록이 다릅니다"
 
     def test_handlers_cover_all_declared_actions(self, definitions, real_registry):
         # 선언만 되고 구현이 없는 액션이 방치되지 않도록 확인
@@ -485,7 +485,7 @@ class TestRealActionsEndToEnd:
                 "RequestInspection",
                 {
                     "equipment_id": "EQP-001",
-                    "chamber_id": "EQP-001.CH2",
+                    "equipment_module_id": "COATER-01.LANE2",
                     "priority": "HIGH",
                     "checklist": "1. RF 정합 확인 2. 유량계 점검",
                 },

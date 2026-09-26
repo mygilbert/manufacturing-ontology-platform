@@ -1,0 +1,130 @@
+# WebSegment Object Type  (배터리 프로파일)
+# 전극 롤의 위치 구간
+#
+# [왜 필요한가]
+#   전극 공정(믹싱/코팅/건조/캘린더링)은 연속(roll-to-roll)이다.
+#   반도체의 Lot/Wafer 같은 이산 추적 단위가 존재하지 않는다.
+#   측정값도 "언제"가 아니라 "롤의 몇 m 지점"의 함수다.
+#
+#   WebSegment 는 그 연속체를 분석 가능한 단위로 자르는 가상 객체다.
+#   품질 판정, 이상 구간 표시, 전극 Lot 과의 연결이 모두 이 단위로 이루어진다.
+#
+# [좌표계]
+#   1차 좌표는 시간이 아니라 position_m (롤 시작점 기준 누적 길이).
+#   설비에서는 시간축으로 데이터가 들어오므로 변환이 필요하다.
+#     position_m = ∫ line_speed(t) dt
+#   라인 정지/가감속/스플라이싱 구간에서 이 변환이 깨지므로
+#   변환 신뢰도를 position_confidence 로 함께 남긴다.
+
+objectType: WebSegment
+version: "1.0.0"
+description: "전극 롤의 위치 구간. 연속 공정의 분석 단위"
+
+primaryKey: segment_id
+
+properties:
+  segment_id:
+    type: string
+    description: "구간 식별자 (roll_id + 시작 위치 조합 권장)"
+    required: true
+    indexed: true
+    example: "R20260926001@000120.0"
+
+  roll_id:
+    type: string
+    description: "소속 롤 ID"
+    required: true
+    indexed: true
+
+  position_start_m:
+    type: number
+    description: "구간 시작 위치 (롤 시작점 기준 누적 m)"
+    required: true
+    indexed: true
+    minimum: 0
+
+  position_end_m:
+    type: number
+    description: "구간 종료 위치 (반열린 구간 [start, end) )"
+    required: true
+    minimum: 0
+
+  lane_no:
+    type: integer
+    description: >
+      폭 방향 레인 번호. 코터가 여러 레인을 동시 코팅하면
+      같은 위치라도 레인별 두께가 다르다. 레인을 구분하지 않으면
+      레인 편차가 평균에 묻혀 사라진다.
+    required: false
+    minimum: 1
+
+  segment_reason:
+    type: enum
+    description: "이 구간이 왜 나뉘었는가"
+    required: true
+    values:
+      - FIXED_LENGTH      # 고정 길이 분할 (예: 1m 단위)
+      - LOT_BOUNDARY      # 전극 Lot 경계
+      - ANOMALY_REGION    # 이상 구간으로 판정되어 분리
+      - SPLICE            # 스플라이싱(롤 이음) 지점
+      - RECIPE_CHANGE     # 레시피/조건 변경 지점
+      - DEFECT_MARK       # 결함 마킹 구간
+    default: "FIXED_LENGTH"
+
+  position_confidence:
+    type: enum
+    description: >
+      위치 좌표의 신뢰도. 시간->위치 변환이 깨질 수 있는 구간을 표시한다.
+      LOW 구간을 근본원인 분석에 그대로 쓰면 엉뚱한 구간을 지목하게 된다.
+    required: true
+    values:
+      - HIGH     # 엔코더 등 직접 측정된 위치
+      - MEDIUM   # 정속 구간의 속도 적분
+      - LOW      # 가감속/정지 구간을 포함한 추정
+    default: "MEDIUM"
+
+  quality_status:
+    type: enum
+    description: "이 구간의 품질 판정"
+    required: false
+    values:
+      - OK
+      - MARGINAL
+      - NG
+      - UNJUDGED
+    default: "UNJUDGED"
+
+# 파생 속성
+derivedProperties:
+  length_m:
+    type: number
+    description: "구간 길이"
+    formula: "position_end_m - position_start_m"
+
+outgoingLinks:
+  - linkType: SUPPLIES_LOT
+    targetObject: ElectrodeLot
+    description: "이 구간이 포함된 전극 Lot"
+
+incomingLinks:
+  - linkType: HAS_SEGMENT
+    sourceObject: Roll
+    description: "이 구간을 포함한 롤"
+
+indexes:
+  - fields: [segment_id]
+    unique: true
+  - fields: [roll_id, position_start_m]
+    unique: false
+  - fields: [roll_id, lane_no, position_start_m]
+    unique: true
+  - fields: [quality_status]
+    unique: false
+
+storage:
+  primary: postgres_age
+  note: >
+    고정 길이 세분화(예: 1m 단위)를 그대로 그래프 노드로 만들면
+    롤 1개당 수백~수천 노드가 생긴다. 기본은 의미 있는 경계
+    (LOT_BOUNDARY / ANOMALY_REGION / SPLICE)만 노드로 만들고,
+    미세 구간은 TimescaleDB 의 web_measurements 에서 범위 질의로 처리한다.

@@ -4,16 +4,20 @@
 # 왜 센서와 관측대상을 분리하는가 (W3C SOSA 관측 패턴)
 #   기존 Measurement 객체는 "센서"와 "관측 대상"이 섞여 있었다.
 #   실제로는 다음이 모두 다른 개념이다.
-#     - Sensor            : 관측을 수행하는 장치 (TEMP_001)
+#     - Sensor            : 관측을 수행하는 장치 (두께 게이지, 온도계)
 #     - ObservedProperty  : 관측되는 물리량 (온도)
-#     - FeatureOfInterest : 관측 대상 (EQP-001의 챔버2)
-#     - Observation       : 특정 시각의 관측 1건 (47.2 degC @ 14:03:22)
+#     - FeatureOfInterest : 관측 대상 (코터 레인2, 화성 채널 37)
+#     - Observation       : 관측 1건 (배터리 전극 공정은 시각이 아니라
+#                         롤 위치 기준이다. profiles/battery/objects/web_measurement.yaml 참조)
 #   센서를 교체해도 관측 대상은 그대로이고, 한 센서가 여러 대상을 볼 수도 있다.
 #   분리해두지 않으면 "센서 교체 전후 데이터를 이어서 볼 수 있는가"에 답할 수 없다.
 #
 # 참조 표준
 #   - W3C SSN/SOSA (https://www.w3.org/TR/vocab-ssn/)
-#   - SEMI E164 (EDA Common Metadata): 파라미터 명명 체계
+#
+# 파라미터 명명 체계는 도메인/벤더마다 다르므로 코어에서 표준을 고정하지 않는다.
+# 대신 param_id(소스 원본)와 observed_property(정규화된 이름)를 분리해
+# 어떤 명명 체계가 들어와도 설비 간 비교가 가능하도록 한다.
 
 objectType: Sensor
 version: "1.0.0"
@@ -23,9 +27,6 @@ standards:
   - id: W3C-SOSA
     name: "Sensor, Observation, Sample, and Actuator"
     appliesTo: "센서/관측 패턴"
-  - id: SEMI-E164
-    name: "EDA Common Metadata"
-    appliesTo: "param_id 명명 체계"
 
 primaryKey: sensor_id
 
@@ -35,7 +36,7 @@ properties:
     description: "센서 고유 식별자"
     required: true
     indexed: true
-    example: "EQP-ETCH-001.CH2.TEMP"
+    example: "COATER-01.LANE2.THICKNESS"
 
   param_id:
     type: string
@@ -44,7 +45,7 @@ properties:
       벤더별로 같은 물리량에 다른 이름을 쓰므로 정규화 대상이다.
     required: true
     indexed: true
-    example: "TEMP_001"
+    example: "<소스 시스템의 파라미터 ID>"
 
   observed_property:
     type: string
@@ -53,13 +54,13 @@ properties:
       param_id가 벤더마다 달라도 이 값으로 설비 간 비교가 가능해진다.
     required: true
     indexed: true
-    example: "chamber_temperature"
+    example: "coating_thickness"
 
   unit:
     type: string
     description: "측정 단위 (UCUM 권장)"
     required: true
-    example: "Cel"
+    example: "um"
 
   equipment_id:
     type: string
@@ -67,9 +68,9 @@ properties:
     required: true
     indexed: true
 
-  chamber_id:
+  equipment_module_id:
     type: string
-    description: "관측 대상 챔버 ID (SOSA:FeatureOfInterest)"
+    description: "관측 대상 설비 모듈 ID (화성 채널, 코팅 레인, 챔버 등) (SOSA:FeatureOfInterest)"
     required: false
     indexed: true
 
@@ -91,18 +92,18 @@ properties:
 
 outgoingLinks:
   - linkType: OBSERVES
-    targetObject: Chamber
+    targetObject: EquipmentModule
     description: "이 센서가 관측하는 대상 (SOSA:hasFeatureOfInterest)"
 
 incomingLinks:
   - linkType: MEASURED_BY
-    sourceObject: Chamber
-    description: "이 챔버를 관측하는 센서"
+    sourceObject: EquipmentModule
+    description: "이 모듈을 관측하는 센서"
 
 indexes:
   - fields: [sensor_id]
     unique: true
-  - fields: [equipment_id, chamber_id]
+  - fields: [equipment_id, equipment_module_id]
     unique: false
   - fields: [observed_property]
     unique: false
@@ -112,19 +113,19 @@ sosaMapping:
   class: "sosa:Sensor"
   properties:
     observed_property: "sosa:observes"
-    chamber_id: "sosa:hasFeatureOfInterest"
+    equipment_module_id: "sosa:hasFeatureOfInterest"
 
 # 데이터 소스 매핑
 # TODO: 사내 실제 테이블/컬럼명으로 교체할 것
 sourceMapping:
   fdc:
-    table: "FDC_PARAM_MASTER"
-    keyColumn: "PARAM_ID"
+    table: "<파라미터 마스터 테이블>"
+    keyColumn: "<파라미터 ID 컬럼>"
     columnMapping:
-      param_id: "PARAM_ID"
-      unit: "UNIT"
-      equipment_id: "EQUIP_ID"
-      chamber_id: "CHAMBER_ID"
+      param_id: "<파라미터 ID 컬럼>"
+      unit: "<단위 컬럼>"
+      equipment_id: "<설비 ID 컬럼>"
+      equipment_module_id: "<모듈/채널/레인 컬럼>"
     note: >
       파라미터 마스터가 없으면 측정값에서 distinct PARAM_ID로 도출하고
       observed_property는 별도 매핑표로 사람이 채운다.

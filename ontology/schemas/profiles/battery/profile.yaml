@@ -1,0 +1,123 @@
+# 배터리 도메인 프로파일
+#
+# 코어 스키마(ontology/schemas/core/)는 도메인 무관이고,
+# 도메인 고유 개념과 enum 은 이 프로파일에서 정의한다.
+#
+# 이 분리는 두 가지 목적을 함께 만족한다.
+#   1. 나중에 다른 도메인(반도체 등)을 만나도 코어는 그대로 재사용한다
+#   2. 사내 고유 값은 여기에도 두지 않고 config/site/ 오버레이로 분리한다
+#      (docs/09_배포_경계.md 참조 예정)
+
+profile: battery
+version: "1.0.0"
+description: "리튬이온 배터리 셀 제조 도메인 프로파일"
+
+# --- 이 프로파일이 추가하는 객체 ---
+objects:
+  - Roll            # 전극 롤 (연속체)
+  - WebSegment      # 롤의 위치 구간
+  - ElectrodeLot    # 전극 Lot  <- 연속/이산 전환점
+  - WebMeasurement  # 위치 인덱스 측정값
+  - Cell
+  - Module
+  - Pack
+
+links:
+  - HAS_SEGMENT     # Roll -> WebSegment
+  - PRODUCES_LOT    # Roll -> ElectrodeLot  (위치 구간 보존)
+  - SUPPLIES_LOT    # WebSegment -> ElectrodeLot
+  - SUPPLIES_CELL   # ElectrodeLot -> Cell  (양극/음극 수렴)
+  - ASSEMBLED_INTO  # Cell -> Module -> Pack
+
+# --- 추적 단위 (핵심 개념) ---
+# 배터리는 공정 전반부가 연속, 후반부가 이산이라 추적 단위가 중간에 바뀐다.
+traceabilityUnits:
+  - stage: ELECTRODE
+    processes: [MIXING, COATING, DRYING, CALENDERING]
+    unit: "연속 (roll_id, position_m)"
+    idAssigned: false
+    note: "이산 ID 없음. 위치로만 지칭 가능"
+
+  - stage: ELECTRODE_CUTTING
+    processes: [SLITTING, NOTCHING]
+    unit: "ElectrodeLot"
+    idAssigned: true
+    note: "★ 전환점. 위치 구간이 Lot ID 로 바뀐다"
+
+  - stage: ASSEMBLY
+    processes: [STACKING, WINDING, WELDING, FILLING]
+    unit: "Cell"
+    idAssigned: true
+    note: "양극/음극 Lot 이 하나의 셀로 수렴"
+
+  - stage: FINISHING
+    processes: [FORMATION, AGING, EOL_TEST]
+    unit: "Cell"
+    idAssigned: true
+    note: "화성/에이징은 수일 단위. 원인-결과 시간 간격이 매우 크다"
+
+  - stage: PACKAGING
+    processes: [MODULE_ASSEMBLY, PACK_ASSEMBLY]
+    unit: "Module / Pack"
+    idAssigned: true
+
+# --- 설비 유형 (core/objects/equipment.yaml 의 type enum) ---
+equipmentTypes:
+  - MIXER           # 믹서
+  - COATER          # 코터
+  - DRYER           # 건조로
+  - CALENDER        # 압연기(캘린더)
+  - SLITTER         # 슬리터
+  - NOTCHER         # 노칭기
+  - STACKER         # 스태커
+  - WINDER          # 와인더
+  - WELDER          # 용접기 (탭/터미널)
+  - FILLER          # 주액기
+  - DEGASSER        # 디개싱
+  - FORMATION       # 화성기
+  - AGING           # 에이징 랙
+  - EOL_TESTER      # EOL 검사기
+  - MODULE_ASSEMBLY
+  - PACK_ASSEMBLY
+  - METROLOGY
+
+# --- 공정 유형 ---
+processTypes:
+  electrode:
+    - MIXING
+    - COATING
+    - DRYING
+    - CALENDERING
+    - SLITTING
+    - NOTCHING
+  assembly:
+    - STACKING
+    - WINDING
+    - WELDING
+    - PACKAGING_CAN
+    - FILLING
+    - SEALING
+  finishing:
+    - FORMATION
+    - DEGASSING
+    - AGING
+    - EOL_TEST
+  pack:
+    - MODULE_ASSEMBLY
+    - PACK_ASSEMBLY
+
+# --- 규제 연계 ---
+# 이 프로파일의 계보 구조는 이상감지뿐 아니라 규제 대응의 기반이 된다.
+regulatory:
+  - id: EU-2023/1542
+    name: "EU 배터리 규정 - 디지털 배터리 여권"
+    appliesFrom: "2027-02-18"
+    scope: "EV / LMT / 2kWh 초과 산업용 배터리"
+    dependsOn:
+      - "Cell -> Module -> Pack 계보"
+      - "ElectrodeLot.material_lot (재료 구성, 재생원료 비율)"
+      - "Roll 위치 단위 공정 조건 (탄소발자국 산정 입력)"
+    implementationStandard: "Catena-X AAS + SAMM Aspect Model"
+    note: >
+      여권은 셀 단위 재료/이력 증명을 요구하므로 계보가 끊기면 대응할 수 없다.
+      이상감지 온톨로지와 여권 대응이 같은 계보 데이터를 공유한다.

@@ -1,0 +1,197 @@
+# ElectrodeLot Object Type  (배터리 프로파일)
+#
+# ★ 이 객체가 배터리 온톨로지의 전환점이다 ★
+#
+# 배터리 제조에는 좌표계가 두 개 있다.
+#
+#   [연속 좌표계]              전환점              [이산 좌표계]
+#   (roll_id, position_m)  ──  ElectrodeLot  ──  cell_id -> module_id -> pack_id
+#
+# 전극 공정(코팅/건조/캘린더링)은 연속체라 위치(m)로만 지칭할 수 있고,
+# 조립 이후는 개별 ID로 추적된다. 전극 Lot 이 그 둘을 잇는 유일한 고리다.
+#
+# 이 연결이 끊기면:
+#   - 불량 셀에서 코팅 조건으로 역추적할 수 없다 (근본원인 분석 불가)
+#   - 이상 코팅 구간이 들어간 셀을 찾을 수 없다 (격리/리콜 범위 산정 불가)
+#   - 배터리 여권의 셀 단위 재료/탄소발자국 추적이 성립하지 않는다
+#
+# 따라서 position_start_m / position_end_m 이 이 스키마에서
+# 가장 중요한 두 개 필드다.
+#
+# [수렴 구조]
+#   셀 하나에는 양극 전극 Lot 과 음극 전극 Lot 이 각각 들어간다.
+#   즉 Cell 의 계보를 거슬러 올라가면 서로 다른 롤의 서로 다른 구간이 여러 개 나온다.
+#   반도체의 Lot -> Wafer 같은 단순 포함 관계가 아니다.
+
+objectType: ElectrodeLot
+version: "1.0.0"
+description: "슬리팅/노칭 후 묶인 전극 Lot. 연속 좌표계와 이산 좌표계의 전환점"
+
+primaryKey: electrode_lot_id
+
+properties:
+  electrode_lot_id:
+    type: string
+    description: "전극 Lot 고유 식별자"
+    required: true
+    indexed: true
+    example: "ELOT-CA-20260926-014"
+
+  electrode_role:
+    type: enum
+    description: "전극 역할"
+    required: true
+    indexed: true
+    values:
+      - CATHODE     # 양극
+      - ANODE       # 음극
+    example: "CATHODE"
+
+  # --- 연속 좌표계와의 연결 (이 스키마의 핵심) ---
+
+  roll_id:
+    type: string
+    description: "원본 전극 롤 ID"
+    required: true
+    indexed: true
+
+  position_start_m:
+    type: number
+    description: >
+      이 Lot 이 잘려 나온 롤 구간의 시작 위치 (m).
+      ★ 이 값이 없으면 셀에서 코팅 조건으로 역추적할 수 없다.
+    required: true
+    indexed: true
+    minimum: 0
+
+  position_end_m:
+    type: number
+    description: "이 Lot 이 잘려 나온 롤 구간의 종료 위치 (m)"
+    required: true
+    minimum: 0
+
+  lane_no:
+    type: integer
+    description: "슬리팅 레인 번호. 같은 위치라도 레인별 특성이 다르다"
+    required: false
+    minimum: 1
+
+  traceability_level:
+    type: enum
+    description: >
+      롤 위치와의 연결이 어떻게 확보됐는가.
+      ★ 분석에서 반드시 레벨별로 분리해야 한다. 섞으면 결과가 오염된다.
+      INFERRED 계보로 "이 구간이 원인"이라고 단정하면 현장 신뢰를 잃는다.
+    required: true
+    indexed: true
+    values:
+      - MEASURED    # 마킹/지문/설비 위치 출력으로 실측
+      - INFERRED    # 투입 순서 + 시트 길이 + 카운트로 추정
+      - ROLL_ONLY   # 어느 롤인지만 알고 구간은 불명
+      - UNKNOWN     # 연결 없음
+    default: "INFERRED"
+
+  sheet_count:
+    type: integer
+    description: "이 Lot 에 포함된 전극편 수"
+    required: false
+    minimum: 1
+
+  # --- 공정 이력 ---
+
+  slitting_equipment_id:
+    type: string
+    description: "슬리팅 설비 ID"
+    required: false
+
+  notching_equipment_id:
+    type: string
+    description: "노칭 설비 ID"
+    required: false
+
+  created_at:
+    type: datetime
+    description: "Lot 생성 시각"
+    required: true
+    indexed: true
+
+  status:
+    type: enum
+    description: "Lot 상태"
+    required: false
+    values:
+      - CREATED
+      - IN_STORAGE
+      - IN_USE
+      - CONSUMED
+      - ON_HOLD
+      - SCRAPPED
+    default: "CREATED"
+
+  material_lot:
+    type: string
+    description: >
+      원자재 로트 (활물질/집전체). 배터리 여권의 재료 구성·재생원료 비율
+      추적이 여기서 시작된다.
+    required: false
+    indexed: true
+
+# 파생 속성
+derivedProperties:
+  position_span_m:
+    type: number
+    description: >
+      이 Lot 이 덮는 롤 구간 길이. ★ 분석 해상도의 한계를 나타낸다.
+      이 값이 50m 라면, 롤 내 50m 안에서 일어난 편차는 Lot 단위로 구분할 수 없다.
+      해상도를 높이려면 Lot 을 더 잘게 나누거나 시트 단위 추적이 필요하다.
+    formula: "position_end_m - position_start_m"
+
+outgoingLinks:
+  - linkType: SUPPLIES_CELL
+    targetObject: Cell
+    description: >
+      이 Lot 의 전극편이 들어간 셀 (1:N).
+      역으로 Cell 입장에서는 양극/음극 Lot 이 각각 들어오므로 N:1 수렴이 된다.
+
+  - linkType: PROCESSED_AT
+    targetObject: EquipmentModule
+    description: "이 Lot 이 처리된 설비 모듈 (슬리터 레인 등)"
+
+incomingLinks:
+  - linkType: PRODUCES_LOT
+    sourceObject: Roll
+    description: "이 Lot 이 잘려 나온 롤"
+
+  - linkType: SUPPLIES_LOT
+    sourceObject: WebSegment
+    description: "이 Lot 구간에 해당하는 웹 세그먼트"
+
+indexes:
+  - fields: [electrode_lot_id]
+    unique: true
+  - fields: [roll_id, position_start_m]
+    unique: false
+  # 역추적/순추적 질의의 주 경로
+  - fields: [roll_id, lane_no, position_start_m, position_end_m]
+    unique: false
+  - fields: [electrode_role, created_at]
+    unique: false
+  - fields: [traceability_level]
+    unique: false
+  - fields: [material_lot]
+    unique: false
+
+sourceMapping:
+  _note: >
+    사내 실제 테이블/컬럼명은 config/site/mappings/ 오버레이로 주입한다.
+  _example:
+    mes:
+      table: "<전극 Lot 이력 테이블>"
+      columnMapping:
+        electrode_lot_id: "<전극 LOT ID>"
+        roll_id: "<원본 롤 ID>"
+        position_start_m: "<롤 내 시작 위치>"
+        position_end_m: "<롤 내 종료 위치>"
+      note: >
+        위치 컬럼이 없고 투입 순서만 있는 경우 traceability_level=INFERRED 로
+        적재하고, 순서+시트길이+카운트로 위치를 추정한다.

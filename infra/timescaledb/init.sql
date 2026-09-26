@@ -300,6 +300,100 @@ END;
 $$;
 
 -- ============================================================
+-- 전극 공정 측정값 (배터리 프로파일) - 위치 인덱스
+-- ============================================================
+-- 왜 별도 테이블인가
+--   fdc_measurements 는 (설비, 시각)으로 인덱싱된다. 조립 이후에는 맞지만
+--   전극 공정(코팅/건조/캘린더링)은 연속 공정이라 측정값이 "시각"이 아니라
+--   "롤의 몇 m 지점"의 함수다.
+--
+--   코팅 두께를 시간으로만 저장하면 나중에 불량 셀에서 역추적할 때
+--   위치를 복원할 수 없고, 계보가 거기서 끊긴다.
+--
+-- 시간축은 버리지 않는다
+--   TimescaleDB 하이퍼테이블은 시간축으로 분할하고, position_m 은
+--   조인/범위 질의용 인덱스로 둔다. 위치 변환이 잘못된 것으로 밝혀지면
+--   원본 시각에서 재계산해야 하므로 timestamp 는 반드시 보존한다.
+
+CREATE TABLE IF NOT EXISTS web_measurements (
+    time                TIMESTAMPTZ      NOT NULL,   -- 원본 측정 시각
+    roll_id             TEXT             NOT NULL,
+    position_m          DOUBLE PRECISION NOT NULL,   -- 롤 시작 기준 누적 길이
+    lane_no             SMALLINT,                    -- 폭 방향 레인
+    sensor_id           TEXT             NOT NULL,
+    observed_property   TEXT             NOT NULL,   -- 정규화된 물리량 이름
+    param_id            TEXT,                        -- 소스 원본 파라미터 ID
+    value               DOUBLE PRECISION,
+    unit                TEXT,
+    usl                 DOUBLE PRECISION,
+    lsl                 DOUBLE PRECISION,
+    target              DOUBLE PRECISION,
+    line_speed_mpm      DOUBLE PRECISION,            -- 위치 변환 근거
+    position_confidence TEXT             NOT NULL DEFAULT 'MEDIUM',
+    equipment_id        TEXT,
+    recipe_id           TEXT,
+    source_system       TEXT             NOT NULL DEFAULT 'FDC',
+    ingested_at         TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+    CONSTRAINT web_measurements_position_nonneg CHECK (position_m >= 0),
+    CONSTRAINT web_measurements_confidence CHECK (
+        position_confidence IN ('HIGH', 'MEDIUM', 'LOW')
+    )
+);
+
+SELECT create_hypertable('web_measurements', 'time',
+                         chunk_time_interval => INTERVAL '1 day',
+                         if_not_exists => TRUE);
+
+-- 멱등 적재용 (배치 재실행 시 중복 방지)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_web_measurements
+    ON web_measurements (roll_id, lane_no, observed_property, position_m, time);
+
+-- ★ 역추적/순추적의 주 경로: 롤 + 위치 범위
+CREATE INDEX IF NOT EXISTS idx_web_meas_roll_position
+    ON web_measurements (roll_id, position_m);
+CREATE INDEX IF NOT EXISTS idx_web_meas_roll_lane_prop_position
+    ON web_measurements (roll_id, lane_no, observed_property, position_m);
+CREATE INDEX IF NOT EXISTS idx_web_meas_property_time
+    ON web_measurements (observed_property, time DESC);
+-- 위치 신뢰도가 낮은 구간은 근본원인 분석에서 분리해야 한다
+CREATE INDEX IF NOT EXISTS idx_web_meas_low_confidence
+    ON web_measurements (roll_id, position_m) WHERE position_confidence = 'LOW';
+
+COMMENT ON TABLE web_measurements IS
+    '전극 공정 측정값. 1차 좌표는 시간이 아니라 롤 내 위치(position_m)다.';
+
+-- ------------------------------------------------------------
+-- 롤 위치 <-> 시각 변환 맵
+-- ------------------------------------------------------------
+-- position_m = INTEGRAL(line_speed(t) dt) 이지만, 라인 정지/가감속/
+-- 스플라이싱 구간에서 이 변환이 깨진다. 구간별로 변환 근거를 남겨
+-- 나중에 재계산하거나 신뢰도를 판정할 수 있게 한다.
+
+CREATE TABLE IF NOT EXISTS roll_position_map (
+    roll_id          TEXT             NOT NULL,
+    time_start       TIMESTAMPTZ      NOT NULL,
+    time_end         TIMESTAMPTZ      NOT NULL,
+    position_start_m DOUBLE PRECISION NOT NULL,
+    position_end_m   DOUBLE PRECISION NOT NULL,
+    avg_speed_mpm    DOUBLE PRECISION,
+    segment_type     TEXT             NOT NULL DEFAULT 'STEADY',
+    confidence       TEXT             NOT NULL DEFAULT 'MEDIUM',
+    PRIMARY KEY (roll_id, time_start),
+    CONSTRAINT roll_position_map_segment CHECK (
+        segment_type IN ('STEADY', 'ACCEL', 'DECEL', 'STOPPED', 'SPLICE')
+    ),
+    CONSTRAINT roll_position_map_confidence CHECK (
+        confidence IN ('HIGH', 'MEDIUM', 'LOW')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_roll_position_map_time
+    ON roll_position_map (roll_id, time_start, time_end);
+
+COMMENT ON TABLE roll_position_map IS
+    '시각<->롤 위치 변환 구간. 정지/가감속/스플라이싱 구간을 명시해 변환 신뢰도를 판정한다.';
+
+-- ============================================================
 -- 완료 메시지
 -- ============================================================
 
@@ -307,5 +401,6 @@ DO $$
 BEGIN
     RAISE NOTICE 'TimescaleDB 스키마 초기화 완료';
     RAISE NOTICE '- 테이블: fdc_measurements, spc_measurements, alarm_history';
+    RAISE NOTICE '- 배터리 전극: web_measurements (위치 인덱스), roll_position_map';
     RAISE NOTICE '- Continuous Aggregates: fdc_stats_5min, spc_stats_hourly, alarm_stats_hourly';
 END $$;

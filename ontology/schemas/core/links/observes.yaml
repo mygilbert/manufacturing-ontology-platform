@@ -15,7 +15,7 @@ source:
   cardinality: N
 
 target:
-  objectType: Chamber
+  objectType: EquipmentModule
   cardinality: 1
 
 properties:

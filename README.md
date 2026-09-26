@@ -105,19 +105,55 @@ PUT  /api/agent/prompt
 
 ## 준거 표준
 
-제조 설비/공정 온톨로지는 바닥부터 만들지 않는다. 자체 용어로 모델링하면
-사내 기존 집계(가동률/OEE)와 수치가 어긋나고 외부 연계 시 전부 다시 매핑해야 한다.
+주 도메인은 **배터리 셀 제조**다. 코어 스키마는 도메인 무관 표준을 따르고,
+도메인 고유 개념은 프로파일로 분리한다.
 
 | 표준 | 적용 대상 | 상태 |
 |---|---|---|
-| **SEMI E10 / E58** | 설비 상태 모델 (Productive / Standby / Engineering / Scheduled·Unscheduled Downtime / Non-scheduled) | 반영 |
-| **SEMI E120 (CEM)** | 설비 구조 분해. `Chamber`를 1급 객체로 분리, `HAS_MODULE` 관계 | 반영 |
-| **SEMI E164** | 파라미터 명명 체계 (`Sensor.param_id`) | 부분 |
-| **ISA-95 / IEC 62264** | 설비 계층, 작업 수행 이력 (`PROCESSED_AT`) | 부분 |
-| **W3C SSN/SOSA** | 관측 패턴. `Sensor` / `OBSERVES` / `Measurement`(=`sosa:Observation`) | 반영 |
-| **IOF Core (BFO)** | 상위 온톨로지 | 향후 |
+| **ISO 22400-2** | 설비 상태 6종 ↔ OEE 시간 요소 매핑 | 반영 |
+| **ISA-95 / IEC 62264** | 설비 계층, 작업 수행 이력 | 부분 |
+| **W3C SSN/SOSA** | 관측 패턴 (Sensor / Observation / FeatureOfInterest) | 반영 |
+| **AAS (Asset Administration Shell)** | 설비·자산 디지털 표현 | 부분 |
+| **Catena-X SAMM** | 배터리 여권 Aspect Model | 계획 |
+| **EU 2023/1542** | 디지털 배터리 여권 (2027.2.18~) | 계획 |
+| SEMI E10 / E120 / E164 | 반도체 프로파일 전용 | 프로파일로 분리 |
 
-자세한 매핑과 적용 근거는 **[docs/06_표준_적용_가이드.md](docs/06_표준_적용_가이드.md)** 참조.
+> **이전 버전 주의**: 초기에는 SEMI 표준(반도체 전용)을 코어에 넣었으나,
+> 주 도메인이 배터리이므로 코어를 ISO 22400 / ISA-95 / SOSA 기반으로 재정렬하고
+> SEMI 참조는 반도체 프로파일로 옮겼다.
+
+### 스키마 구조
+
+```
+ontology/schemas/
+  core/              도메인 무관 (Equipment, EquipmentModule, Sensor, Measurement, Alarm ...)
+  actions/           Action 계층 (상태 변경의 유일한 경로)
+  profiles/
+    battery/         Roll, WebSegment, ElectrodeLot, Cell, Module, Pack   <- 주 도메인
+    semiconductor/   Lot, Wafer                                           <- 대조군
+```
+
+코어를 도메인 중립으로 유지하는 것은 테스트로 강제한다
+(`tests/test_ontology_schemas.py`).
+
+## 배터리 추적성 — 연속 공정과 이산 공정의 연결
+
+배터리는 전극 공정이 **연속(roll-to-roll)**이라 반도체의 Lot/Wafer 모델이
+그대로 맞지 않는다. 좌표계가 두 개이고 그 사이에 전환점이 있다.
+
+```
+[연속 좌표계]              전환점              [이산 좌표계]
+(roll_id, position_m)  ──  ElectrodeLot  ──  cell_id → module_id → pack_id
+```
+
+`ElectrodeLot` 이 둘을 잇는 유일한 고리이며, 그 `position_start_m` /
+`position_end_m` 이 스키마 전체에서 가장 중요한 필드다. 이 연결이 끊기면
+근본원인 역추적, 영향 범위 순추적, 배터리 여권 대응이 모두 불가능해진다.
+
+셀 하나에는 **양극 Lot 과 음극 Lot 이 각각** 들어가므로 계보가 **수렴**한다.
+반도체의 단순 포함 관계와 다르다.
+
+자세한 설계는 **[docs/10_배터리_추적성_설계.md](docs/10_배터리_추적성_설계.md)** 참조.
 
 ### 온톨로지 문서
 
@@ -131,6 +167,7 @@ PUT  /api/agent/prompt
 | **[06_표준_적용_가이드](docs/06_표준_적용_가이드.md)** | SEMI/ISA-95/SOSA 적용, 관계 메타데이터 규약 |
 | **[07_개선_로드맵](docs/07_개선_로드맵.md)** | 실데이터 연동 전 과제, 배치/스트리밍 판단 기준 |
 | **[08_액션_계층](docs/08_액션_계층.md)** | Kinetic Layer - 상태 변경의 유일한 경로, 권한/감사/시뮬레이션 |
+| **[10_배터리_추적성_설계](docs/10_배터리_추적성_설계.md)** | 연속↔이산 계보, 전극 Lot 전환점, 추적 신뢰도, 여권 연계 |
 
 ## Action 계층 (Kinetic Layer)
 

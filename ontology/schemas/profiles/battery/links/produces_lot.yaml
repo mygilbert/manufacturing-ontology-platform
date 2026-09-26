@@ -1,0 +1,75 @@
+# PRODUCES_LOT Link Type  (배터리 프로파일)
+# 전극 롤이 전극 Lot 을 산출하는 관계 — 연속에서 이산으로 넘어가는 지점
+#
+# 이 관계의 position_start_m / position_end_m 이 배터리 추적성의 전부다.
+# 여기가 비면 셀에서 코팅 조건으로 가는 길이 끊긴다.
+
+linkType: PRODUCES_LOT
+version: "1.0.0"
+description: "전극 롤의 특정 구간이 전극 Lot 으로 잘려 나온 관계"
+
+source:
+  objectType: Roll
+  cardinality: 1
+
+target:
+  objectType: ElectrodeLot
+  cardinality: N
+
+properties:
+  position_start_m:
+    type: number
+    description: "잘려 나온 구간의 시작 위치 (m)"
+    required: true
+    minimum: 0
+
+  position_end_m:
+    type: number
+    description: "잘려 나온 구간의 종료 위치 (m). 반열린 구간 [start, end)"
+    required: true
+    minimum: 0
+
+  lane_no:
+    type: integer
+    description: "슬리팅 레인 번호"
+    required: false
+    minimum: 1
+
+  traceability_level:
+    type: enum
+    description: >
+      위치 연결의 확보 방식. electrode_lot.yaml 과 동일 기준.
+      이 값이 ROLL_ONLY 이면 구간 단위 분석에서 제외해야 한다.
+    required: true
+    values:
+      - MEASURED
+      - INFERRED
+      - ROLL_ONLY
+      - UNKNOWN
+    default: "INFERRED"
+
+  inference_method:
+    type: string
+    description: >
+      traceability_level=INFERRED 인 경우 추정 근거.
+      예: "투입순서 + 시트길이 + 카운트", "라인속도 적분"
+      근거를 남기지 않으면 나중에 추정 품질을 개선할 수 없다.
+    required: false
+
+  slit_at:
+    type: datetime
+    description: "슬리팅 시각"
+    required: false
+
+indexes:
+  - fields: [position_start_m]
+  - fields: [traceability_level]
+
+# 순추적(영향 범위) 질의의 핵심 경로
+# "코팅 이상 구간 [120, 135) 이 들어간 셀을 전부 찾아라"
+usageNote: >
+  Roll + 위치 범위 -> PRODUCES_LOT (구간 겹침 조건) -> ElectrodeLot
+  -> SUPPLIES_CELL -> Cell -> ASSEMBLED_INTO -> Module -> Pack
+
+  구간 겹침 조건은 다음과 같다.
+    rel.position_start_m < :query_end AND rel.position_end_m > :query_start

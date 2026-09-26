@@ -1,0 +1,48 @@
+# 반도체 도메인 프로파일
+#
+# 이 리포지토리는 반도체 전제로 출발했으나 현재 주 도메인은 배터리다.
+# 반도체 스키마는 코어 재사용성을 검증하는 대조군으로 유지한다.
+# (같은 코어 위에 두 도메인이 올라가면 코어가 도메인 중립이라는 증거가 된다)
+
+profile: semiconductor
+version: "1.0.0"
+description: "반도체 전공정 도메인 프로파일"
+
+objects:
+  - Lot
+  - Wafer
+
+links:
+  - BELONGS_TO     # Wafer -> Lot
+  - AFFECTS_LOT    # Alarm -> Lot
+
+# 배터리와의 구조적 차이 (설계 참고)
+traceabilityUnits:
+  - stage: ALL
+    unit: "Lot / Wafer"
+    idAssigned: true
+    note: >
+      전 공정이 이산 단위다. 배터리처럼 연속->이산 전환점이 없고,
+      Lot -> Wafer 는 단순 포함 관계이며 수렴이 일어나지 않는다.
+      그래서 시간구간 조인(track in/out)만으로 계보가 성립한다.
+
+equipmentTypes:
+  - DRY_ETCH
+  - WET_ETCH
+  - CVD
+  - PVD
+  - LITHO
+  - CMP
+  - DIFFUSION
+  - ION_IMPLANT
+  - METROLOGY
+  - CLEANING
+
+# 반도체 전용 표준 (배터리에는 적용하지 않는다)
+standards:
+  - id: SEMI-E10
+    appliesTo: "설비 상태 모델의 원형. 코어는 ISO 22400 매핑으로 일반화했다"
+  - id: SEMI-E120
+    appliesTo: "설비 구조 (Module/Subsystem/IODevice). 코어의 EquipmentModule 로 일반화"
+  - id: SEMI-E164
+    appliesTo: "EDA 공통 메타데이터"

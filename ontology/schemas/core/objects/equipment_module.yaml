@@ -1,0 +1,135 @@
+# EquipmentModule Object Type
+# 설비를 구성하는 처리 단위 (도메인 무관 코어)
+#
+# 왜 별도 객체인가
+#   설비 단위로만 모델링하면 "몇 번 채널에서 무슨 일이 있었는가"를 질의할 수 없다.
+#   FDC 데이터는 대부분 모듈 단위로 수집되고 이상도 모듈 단위로 발생한다.
+#
+# 도메인별 대응
+#   배터리  : 코팅 헤드, 슬리터 레인, 화성 채널, 에이징 슬롯, 용접 헤드
+#             (특히 화성 채널별 편차는 배터리에서 핵심 분석 대상이다)
+#   반도체  : 챔버 (SEMI E120 의 Process Module)
+#
+# [이전 이름] chamber.yaml — 반도체 용어라 일반화했다.
+
+objectType: EquipmentModule
+version: "1.0.0"
+description: "설비를 구성하는 처리 단위 (채널/레인/헤드/챔버)"
+
+standards:
+  - id: AAS
+    name: "Asset Administration Shell"
+    appliesTo: "설비 구성 요소의 디지털 표현"
+  - id: ISA-95
+    name: "IEC 62264"
+    appliesTo: "Equipment Module 계층"
+
+primaryKey: module_id
+
+properties:
+  module_id:
+    type: string
+    description: "모듈 고유 식별자 (설비 ID + 모듈 번호 조합 권장)"
+    required: true
+    indexed: true
+    example: "COATER-01.LANE2"
+
+  equipment_id:
+    type: string
+    description: "소속 설비 ID"
+    required: true
+    indexed: true
+    example: "COATER-01"
+
+  module_no:
+    type: string
+    description: "설비 내 모듈 번호/이름 (소스 시스템이 기록하는 원본 값)"
+    required: true
+    example: "2"
+
+  module_type:
+    type: enum
+    description: "모듈 분류. 도메인 공통 상위 분류"
+    required: true
+    values:
+      - PROCESS_UNIT       # 실제 공정이 일어나는 단위 (코팅 헤드, 챔버)
+      - LANE               # 폭 방향 레인 (코터/슬리터)
+      - CHANNEL            # 화성/충방전 채널          <- 배터리 핵심
+      - SLOT               # 에이징 랙 슬롯            <- 배터리 핵심
+      - HEAD               # 용접/도포 헤드
+      - LOAD_PORT          # 투입/배출 포트
+      - TRANSFER_UNIT      # 이송 단위
+      - METROLOGY_UNIT     # 계측 단위
+      - OTHER
+    default: "PROCESS_UNIT"
+
+  lane_no:
+    type: integer
+    description: >
+      폭 방향 레인 번호 (module_type=LANE 인 경우).
+      코팅/슬리팅은 한 웹을 여러 레인으로 나누므로, 레인별 두께 편차가
+      셀 용량 편차로 직결된다. 레인을 구분하지 않으면 이 신호가 평균에 묻힌다.
+    required: false
+    minimum: 1
+
+  status:
+    type: enum
+    description: "모듈 상태. 설비와 동일한 6상태 모델 (core/objects/equipment.yaml 참조)"
+    required: false
+    standard: ISO-22400-2
+    values:
+      - PRODUCTIVE
+      - STANDBY
+      - ENGINEERING
+      - SCHEDULED_DOWNTIME
+      - UNSCHEDULED_DOWNTIME
+      - NON_SCHEDULED
+
+  last_pm_date:
+    type: datetime
+    description: "마지막 예방 정비 일자 (모듈 단위 PM 주기가 설비와 다른 경우가 많다)"
+    required: false
+
+  units_since_pm:
+    type: integer
+    description: >
+      PM 이후 처리량. 배터리에서는 화성 채널의 누적 사이클 수,
+      코터의 누적 주행 길이(m) 등이 여기 해당한다.
+    required: false
+
+outgoingLinks:
+  - linkType: MEASURED_BY
+    targetObject: Sensor
+    description: "이 모듈을 관측하는 센서"
+
+incomingLinks:
+  - linkType: HAS_MODULE
+    sourceObject: Equipment
+    description: "이 모듈이 속한 설비"
+
+  - linkType: PROCESSED_AT
+    sourceObject: ElectrodeLot
+    description: "이 모듈에서 처리된 전극 Lot (배터리 프로파일)"
+
+indexes:
+  - fields: [module_id]
+    unique: true
+  - fields: [equipment_id]
+    unique: false
+  - fields: [equipment_id, module_no]
+    unique: true
+  - fields: [module_type, lane_no]
+    unique: false
+
+# 데이터 소스 매핑
+# 실제 테이블/컬럼명은 config/site/ 오버레이에서 주입한다 (코어에는 두지 않는다)
+sourceMapping:
+  _note: >
+    사내 실제 테이블/컬럼명은 영업비밀이므로 코어 스키마에 넣지 않는다.
+    config/site/mappings/equipment_module.yaml 로 오버레이한다.
+  _example:
+    fdc:
+      table: "<FDC 측정값 또는 설비 마스터 테이블>"
+      columnMapping:
+        module_no: "<채널/레인 컬럼>"
+        equipment_id: "<설비 ID 컬럼>"

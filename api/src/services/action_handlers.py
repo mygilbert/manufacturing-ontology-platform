@@ -145,10 +145,10 @@ def register_handlers(registry: ActionRegistry) -> ActionRegistry:
     @registry.handler("UpdateEquipmentState")
     def update_equipment_state(params, principal: Principal, dry_run: bool) -> Dict[str, Any]:
         equipment_id = params["equipment_id"]
-        chamber_id = params.get("chamber_id")
+        module_id = params.get("equipment_module_id")
         to_state = params["to_state"]
-        target_type = "Chamber" if chamber_id else "Equipment"
-        target_id = chamber_id or equipment_id
+        target_type = "EquipmentModule" if module_id else "Equipment"
+        target_id = module_id or equipment_id
 
         # TODO: 현재 상태를 온톨로지에서 조회. 연동 전까지는 전이 검증을 건너뛴다.
         from_state = None
@@ -211,8 +211,8 @@ def register_handlers(registry: ActionRegistry) -> ActionRegistry:
     @registry.handler("RequestInspection")
     def request_inspection(params, principal: Principal, dry_run: bool) -> Dict[str, Any]:
         equipment_id = params["equipment_id"]
-        chamber_id = params.get("chamber_id")
-        target_id = chamber_id or equipment_id
+        module_id = params.get("equipment_module_id")
+        target_id = module_id or equipment_id
 
         changes = [
             _change("Inspection", target_id, "requested_by", None, principal.user_id),

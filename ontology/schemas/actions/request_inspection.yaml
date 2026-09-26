@@ -10,7 +10,7 @@ description: "설비/챔버에 대한 점검을 지시하고 점검 항목을 �
 
 appliesTo:
   - Equipment
-  - Chamber
+  - EquipmentModule
 
 parameters:
   equipment_id:
@@ -18,10 +18,10 @@ parameters:
     required: true
     description: "점검 대상 설비 ID"
 
-  chamber_id:
+  equipment_module_id:
     type: string
     required: false
-    description: "점검 대상 챔버 ID"
+    description: "점검 대상 모듈 ID (화성 채널, 코팅 레인 등)"
 
   priority:
     type: string

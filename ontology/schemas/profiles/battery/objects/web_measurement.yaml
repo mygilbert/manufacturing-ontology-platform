@@ -1,0 +1,162 @@
+# WebMeasurement Object Type  (배터리 프로파일)
+# 전극 공정의 위치 인덱스 측정값
+#
+# [왜 별도 객체인가]
+#   core/objects/measurement.yaml 은 (sensor_id, timestamp) 로 인덱싱된다.
+#   조립 이후 공정에는 맞지만 전극 공정에는 맞지 않는다.
+#
+#   코팅 두께는 "14시 03분 22초의 값"이 아니라 "롤의 120.4m 지점의 값"이다.
+#   시간으로만 저장하면 나중에 셀에서 역추적할 때 위치를 복원할 수 없다.
+#
+#   설비는 시간축으로 데이터를 내보내므로, 적재 시점에 위치로 변환해
+#   두 좌표를 모두 저장한다. 변환은 되돌릴 수 없는 경우가 많으므로
+#   원본 시각도 반드시 함께 남긴다.
+#
+# [저장 위치]
+#   그래프(AGE)에 적재하지 않는다. 롤 1개당 수만~수십만 건이 나온다.
+#   TimescaleDB 에 두고 (roll_id, position_m) 범위 질의로 접근한다.
+
+objectType: WebMeasurement
+version: "1.0.0"
+description: "전극 공정 측정값. 위치(m) 인덱스"
+
+standards:
+  - id: W3C-SOSA
+    name: "Sensor, Observation, Sample, and Actuator"
+    appliesTo: "관측 1건의 구조 (FeatureOfInterest 가 WebSegment 인 경우)"
+
+storage:
+  primary: timescaledb
+  table: web_measurements
+  graphNode: false
+  note: >
+    그래프에서는 Roll -> WebSegment -> ElectrodeLot 경로로 접근하고,
+    실제 값은 TimescaleDB 에서 (roll_id, position_m) 범위로 가져온다.
+
+primaryKey: measurement_id
+
+properties:
+  measurement_id:
+    type: string
+    description: "측정 식별자"
+    required: true
+
+  roll_id:
+    type: string
+    description: "대상 롤 ID"
+    required: true
+    indexed: true
+
+  position_m:
+    type: number
+    description: >
+      ★ 1차 좌표. 롤 시작점 기준 누적 길이.
+      이 값으로 전극 Lot 구간과 조인한다.
+    required: true
+    indexed: true
+    minimum: 0
+
+  lane_no:
+    type: integer
+    description: "폭 방향 레인 번호"
+    required: false
+    minimum: 1
+
+  timestamp:
+    type: datetime
+    description: >
+      원본 측정 시각. 위치 변환이 잘못된 것으로 밝혀졌을 때
+      재계산하려면 반드시 필요하다. 절대 버리지 않는다.
+    required: true
+    indexed: true
+
+  line_speed_mpm:
+    type: number
+    description: >
+      측정 시점의 라인 속도 (m/min).
+      위치 변환의 근거이자, 가감속 구간 판별의 입력이다.
+    required: false
+
+  sensor_id:
+    type: string
+    description: "관측 센서 (sosa:madeBySensor)"
+    required: true
+    indexed: true
+
+  observed_property:
+    type: string
+    description: >
+      정규화된 관측 물리량. 설비 벤더별 param_id 가 달라도
+      이 값으로 설비 간 비교가 가능하다.
+    required: true
+    indexed: true
+    example: "coating_thickness"
+
+  value:
+    type: number
+    description: "측정값"
+    required: true
+
+  unit:
+    type: string
+    description: "단위 (UCUM 권장)"
+    required: true
+    example: "um"
+
+  usl:
+    type: number
+    description: "상한 규격"
+    required: false
+
+  lsl:
+    type: number
+    description: "하한 규격"
+    required: false
+
+  position_confidence:
+    type: enum
+    description: "위치 좌표 신뢰도 (web_segment.yaml 과 동일 기준)"
+    required: false
+    values:
+      - HIGH
+      - MEDIUM
+      - LOW
+    default: "MEDIUM"
+
+# 배터리 전극 공정의 대표 관측 물리량
+# 실제 파라미터 목록과 사내 명칭은 config/site/ 에서 주입한다
+commonObservedProperties:
+  coating:
+    - coating_thickness       # 코팅 두께
+    - coating_weight          # 도포 중량 (loading)
+    - slurry_viscosity        # 슬러리 점도
+    - slurry_solid_content    # 고형분
+    - die_gap                 # 다이 갭
+  drying:
+    - drying_temp_zone        # 건조 존별 온도
+    - solvent_residue         # 잔류 용매
+  calendering:
+    - electrode_density       # 전극 밀도
+    - press_load              # 압연 하중
+    - thickness_after_press   # 압연 후 두께
+  common:
+    - line_speed              # 라인 속도
+    - web_tension             # 웹 장력
+    - edge_position           # 웹 사행 (edge position)
+
+indexes:
+  - fields: [roll_id, position_m]
+    unique: false
+  - fields: [roll_id, lane_no, observed_property, position_m]
+    unique: false
+  - fields: [timestamp]
+    unique: false
+
+sosaMapping:
+  class: "sosa:Observation"
+  properties:
+    sensor_id: "sosa:madeBySensor"
+    observed_property: "sosa:observedProperty"
+    roll_id: "sosa:hasFeatureOfInterest"
+    timestamp: "sosa:resultTime"
+    value: "sosa:hasSimpleResult"

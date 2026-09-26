@@ -1,5 +1,6 @@
 # PROCESSED_AT Link Type
-# Lot/Wafer가 특정 설비에서 처리되었음을 나타내는 관계
+# 생산 단위가 특정 설비/모듈에서 처리되었음을 나타내는 관계
+#   배터리: ElectrodeLot / Cell,  반도체: Lot / Wafer
 #
 # [이 관계가 온톨로지의 척추다]
 #   FDC 데이터는 "설비 축"이고 MES 데이터는 "제품 축"이다.
@@ -12,7 +13,7 @@
 #   측정값 한 건을 Lot에 붙이려면 반드시 처리 구간 안에 들어가는지 봐야 한다.
 #
 #     ON  m.equipment_id = t.equipment_id
-#     AND m.chamber_id   = t.chamber_id
+#     AND m.module_id     = t.module_id
 #     AND m.timestamp >= t.track_in_time
 #     AND m.timestamp <  t.track_out_time     -- 반열린 구간 [in, out)
 #
@@ -20,7 +21,7 @@
 
 linkType: PROCESSED_AT
 version: "2.0.0"
-description: "Lot 또는 Wafer가 특정 설비/챔버에서 처리된 관계 (시간구간 기반)"
+description: "생산 단위가 특정 설비/모듈에서 처리된 관계 (시간구간 기반)"
 
 standards:
   - id: ISA-95
@@ -29,7 +30,7 @@ standards:
 
 # 관계 방향
 source:
-  objectType: Lot
+  objectType: ProducedUnit   # 프로파일에서 구체화 (ElectrodeLot/Cell, Lot/Wafer)
   cardinality: N  # 여러 Lot이
 
 target:
@@ -58,16 +59,18 @@ properties:
     description: "처리 종료 시간"
     required: false
 
-  chamber_id:
+  equipment_module_id:
     type: string
-    description: "처리된 챔버 ID. FDC 측정값과 조인할 때 설비만으로는 부족하다"
+    description: >
+      처리된 설비 모듈 ID (화성 채널, 코팅 레인, 챔버 등).
+      FDC 측정값과 조인할 때 설비 단위만으로는 부족하다
     required: false
 
-  chamber_resolved:
+  module_resolved:
     type: boolean
     description: >
-      챔버를 특정할 수 있었는지 여부.
-      MES가 설비 단위로만 기록하면 false가 되고, 이 관계는 챔버 단위
+      설비 모듈(채널/레인)을 특정할 수 있었는지 여부.
+      MES가 설비 단위로만 기록하면 false가 되고, 이 관계는 모듈 단위
       통계/상관분석에서 제외해야 한다. 조용히 섞으면 결과가 오염된다.
     required: true
     default: false

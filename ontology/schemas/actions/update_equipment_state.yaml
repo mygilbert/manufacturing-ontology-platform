@@ -1,5 +1,8 @@
 # UpdateEquipmentState Action Type
-# 설비 상태 전이 (SEMI E10)
+# 설비 상태 전이
+#
+# 준거: core/objects/equipment.yaml 의 6상태 모델 (ISO 22400 시간 요소에 매핑)
+# 상태 목록은 equipment.yaml 과 반드시 일치해야 한다 (테스트로 강제).
 #
 # 상태 전이를 자유롭게 허용하면 가동률 집계가 무너진다.
 # 예를 들어 UNSCHEDULED_DOWNTIME에서 곧바로 PRODUCTIVE로 가면
@@ -7,11 +10,11 @@
 
 actionType: UpdateEquipmentState
 version: "1.0.0"
-description: "설비의 SEMI E10 상태를 전이시킨다"
+description: "설비/모듈의 상태를 전이시킨다 (ISO 22400 시간 요소 집계 입력)"
 
 appliesTo:
   - Equipment
-  - Chamber
+  - EquipmentModule
 
 parameters:
   equipment_id:
@@ -19,15 +22,17 @@ parameters:
     required: true
     description: "대상 설비 ID"
 
-  chamber_id:
+  equipment_module_id:
     type: string
     required: false
-    description: "챔버 단위 전이인 경우 챔버 ID"
+    description: >
+      모듈 단위 전이인 경우 모듈 ID (화성 채널, 코팅 레인, 챔버 등).
+      배터리에서는 화성 채널 단위 상태 관리가 특히 중요하다.
 
   to_state:
     type: string
     required: true
-    description: "전이할 SEMI E10 상태"
+    description: "전이할 설비 상태"
     values:
       - PRODUCTIVE
       - STANDBY
@@ -51,7 +56,8 @@ audit:
   reasonRequired: true
 
 # 허용 상태 전이 (from -> [to...])
-# SEMI E10 기본상태 간 전이 중 운영상 의미 있는 것만 허용한다.
+# 6기본상태 간 전이 중 운영상 의미 있는 것만 허용한다.
+# 자유롭게 허용하면 복구 조치가 기록되지 않아 가동률 집계가 무너진다.
 transitions:
   PRODUCTIVE:
     - STANDBY
@@ -85,5 +91,5 @@ transitions:
     - SCHEDULED_DOWNTIME
 
 sideEffects:
-  - "Equipment.status 또는 Chamber.status 갱신"
+  - "Equipment.status 또는 EquipmentModule.status 갱신"
   - "상태 구간 이력 기록 (가동률/OEE 집계 입력)"

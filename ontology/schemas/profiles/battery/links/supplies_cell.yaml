@@ -1,0 +1,85 @@
+# SUPPLIES_CELL Link Type  (배터리 프로파일)
+# 전극 Lot 의 전극편이 셀에 들어간 관계
+#
+# [수렴 구조]
+#   Roll -> ElectrodeLot 은 1:N 분기이지만,
+#   ElectrodeLot -> Cell 은 Cell 입장에서 N:1 수렴이다.
+#
+#   셀 하나에는 최소 양극 Lot 1개 + 음극 Lot 1개가 들어간다.
+#   Lot 경계에 걸친 셀은 같은 역할의 Lot 이 2개 들어올 수도 있다.
+#
+#   반도체의 Wafer BELONGS_TO Lot (단순 포함) 과 근본적으로 다르다.
+#   이 차이를 모델이 표현하지 못하면 근본원인 분석이 한쪽 전극만 보게 된다.
+
+linkType: SUPPLIES_CELL
+version: "1.0.0"
+description: "전극 Lot 의 전극편이 셀 조립에 투입된 관계"
+
+source:
+  objectType: ElectrodeLot
+  cardinality: N
+
+target:
+  objectType: Cell
+  cardinality: N   # 실질적으로 Cell 당 2개 이상 (양극/음극)
+
+properties:
+  electrode_role:
+    type: enum
+    description: "이 Lot 이 셀에서 맡은 역할"
+    required: true
+    values:
+      - CATHODE
+      - ANODE
+
+  sheet_count:
+    type: integer
+    description: "이 셀에 투입된 전극편 수"
+    required: false
+    minimum: 1
+
+  spans_lot_boundary:
+    type: boolean
+    description: >
+      이 셀이 전극 Lot 경계에 걸쳐 있는가.
+      ★ 경계 셀은 서로 다른 조건의 전극이 섞여 있어 분석에서 특별 취급이 필요하다.
+      원인 파라미터가 두 Lot 중 어느 쪽 것인지 단정할 수 없으므로,
+      단일 조건 비교에서는 제외하는 편이 안전하다.
+    required: true
+    default: false
+
+  stacking_equipment_id:
+    type: string
+    description: "스태킹/와인딩 설비 ID"
+    required: false
+
+  assembled_at:
+    type: datetime
+    description: "조립 시각"
+    required: false
+
+  traceability_level:
+    type: enum
+    description: >
+      Lot 과 셀의 연결 확보 방식.
+      전체 계보의 신뢰도는 Roll->Lot 과 Lot->Cell 중 **낮은 쪽**을 따른다.
+    required: true
+    values:
+      - MEASURED
+      - INFERRED
+      - UNKNOWN
+    default: "MEASURED"
+
+indexes:
+  - fields: [electrode_role]
+  - fields: [spans_lot_boundary]
+  - fields: [assembled_at]
+
+usageNote: >
+  역추적(근본원인):
+    Cell -> SUPPLIES_CELL(역방향) -> ElectrodeLot(양극/음극 각각)
+         -> PRODUCES_LOT(역방향) -> Roll + [position 구간]
+         -> web_measurements 범위 질의
+
+  셀 하나에 양극/음극 Lot 이 각각 물리므로, 역추적 결과는 항상
+  **복수의 롤 구간**이다. 하나로 뭉뚱그리면 안 된다.
