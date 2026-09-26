@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import settings
-from routers import ontology, analytics, realtime, agent
+from routers import ontology, analytics, realtime, agent, actions
 
 # 로깅 설정
 logging.basicConfig(
@@ -24,6 +24,10 @@ async def lifespan(app: FastAPI):
     """애플리케이션 생명주기 관리"""
     # 시작
     logger.info("Starting Manufacturing Ontology Platform API...")
+
+    # 인증 개발 모드 경고 (감사 기록의 "누가"가 무의미해진다)
+    from auth import warn_if_dev_mode
+    warn_if_dev_mode()
 
     # 데이터베이스 연결 초기화
     try:
@@ -85,6 +89,7 @@ app.include_router(ontology.router, prefix="/api/ontology", tags=["Ontology"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
 app.include_router(realtime.router, prefix="/api/realtime", tags=["Real-time"])
 app.include_router(agent.router, prefix="/api/agent", tags=["AI Agent"])
+app.include_router(actions.router, prefix="/api/actions", tags=["Actions"])
 
 
 # 헬스체크

@@ -1,0 +1,72 @@
+# RequestInspection Action Type
+# 점검 지시 생성
+#
+# Agent의 근본원인 분석 결과를 "읽고 끝"이 아니라
+# 실제 작업 지시로 이어주는 액션. 분석 도구와 운영 시스템을 가르는 지점이다.
+
+actionType: RequestInspection
+version: "1.0.0"
+description: "설비/챔버에 대한 점검을 지시하고 점검 항목을 전달한다"
+
+appliesTo:
+  - Equipment
+  - Chamber
+
+parameters:
+  equipment_id:
+    type: string
+    required: true
+    description: "점검 대상 설비 ID"
+
+  chamber_id:
+    type: string
+    required: false
+    description: "점검 대상 챔버 ID"
+
+  priority:
+    type: string
+    required: true
+    description: "점검 우선순위"
+    values:
+      - LOW
+      - NORMAL
+      - HIGH
+      - URGENT
+    default: "NORMAL"
+
+  checklist:
+    type: string
+    required: true
+    description: >
+      점검 항목. 전문가 지식의 점검 순서 또는 관계 그래프의
+      lag 기반 추적 순서에서 생성한다.
+
+  based_on_relationship:
+    type: string
+    required: false
+    description: >
+      이 지시의 근거가 된 관계 (source->target). 검증된(verified) 관계만
+      근거로 쓴다. 미검증 가설로 현장 작업을 지시하면 신뢰를 잃는다.
+
+  due_hours:
+    type: integer
+    required: false
+    description: "점검 기한 (시간)"
+    minimum: 1
+    maximum: 720
+    default: 24
+
+permissions:
+  roles:
+    - process_engineer
+    - equipment_engineer
+    - shift_supervisor
+
+audit:
+  reasonRequired: true
+
+requiresHumanConfirmation: true
+
+sideEffects:
+  - "점검 지시 생성 및 담당자 배정"
+  - "근거 관계에 점검 지시 이력 연결 (관계의 실효성 추적)"

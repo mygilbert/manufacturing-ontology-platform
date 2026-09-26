@@ -1,0 +1,89 @@
+# UpdateEquipmentState Action Type
+# 설비 상태 전이 (SEMI E10)
+#
+# 상태 전이를 자유롭게 허용하면 가동률 집계가 무너진다.
+# 예를 들어 UNSCHEDULED_DOWNTIME에서 곧바로 PRODUCTIVE로 가면
+# 복구 조치가 기록되지 않는다. 허용 전이를 스키마에 고정한다.
+
+actionType: UpdateEquipmentState
+version: "1.0.0"
+description: "설비의 SEMI E10 상태를 전이시킨다"
+
+appliesTo:
+  - Equipment
+  - Chamber
+
+parameters:
+  equipment_id:
+    type: string
+    required: true
+    description: "대상 설비 ID"
+
+  chamber_id:
+    type: string
+    required: false
+    description: "챔버 단위 전이인 경우 챔버 ID"
+
+  to_state:
+    type: string
+    required: true
+    description: "전이할 SEMI E10 상태"
+    values:
+      - PRODUCTIVE
+      - STANDBY
+      - ENGINEERING
+      - SCHEDULED_DOWNTIME
+      - UNSCHEDULED_DOWNTIME
+      - NON_SCHEDULED
+
+  substate:
+    type: string
+    required: false
+    description: "사내 세부 사유 코드 (e10_substate)"
+
+permissions:
+  roles:
+    - equipment_engineer
+    - shift_supervisor
+    - ontology_admin
+
+audit:
+  reasonRequired: true
+
+# 허용 상태 전이 (from -> [to...])
+# SEMI E10 기본상태 간 전이 중 운영상 의미 있는 것만 허용한다.
+transitions:
+  PRODUCTIVE:
+    - STANDBY
+    - ENGINEERING
+    - SCHEDULED_DOWNTIME
+    - UNSCHEDULED_DOWNTIME
+    - NON_SCHEDULED
+  STANDBY:
+    - PRODUCTIVE
+    - ENGINEERING
+    - SCHEDULED_DOWNTIME
+    - UNSCHEDULED_DOWNTIME
+    - NON_SCHEDULED
+  ENGINEERING:
+    - STANDBY
+    - PRODUCTIVE
+    - SCHEDULED_DOWNTIME
+    - UNSCHEDULED_DOWNTIME
+  SCHEDULED_DOWNTIME:
+    # 정비 종료 후에는 대기 상태를 거친다. 바로 생산으로 가지 않는다.
+    - STANDBY
+    - ENGINEERING
+    - UNSCHEDULED_DOWNTIME
+  UNSCHEDULED_DOWNTIME:
+    # 고장 복구 후에도 대기/엔지니어링을 거쳐 검증한 뒤 생산에 투입한다.
+    - STANDBY
+    - ENGINEERING
+    - SCHEDULED_DOWNTIME
+  NON_SCHEDULED:
+    - STANDBY
+    - SCHEDULED_DOWNTIME
+
+sideEffects:
+  - "Equipment.status 또는 Chamber.status 갱신"
+  - "상태 구간 이력 기록 (가동률/OEE 집계 입력)"

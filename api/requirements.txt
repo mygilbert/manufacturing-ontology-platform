@@ -38,6 +38,7 @@ aiohttp>=3.9.0
 
 # Utilities
 python-dateutil>=2.8.0
+PyYAML>=6.0        # 액션/온톨로지 스키마 로드
 pytz>=2023.3
 
 # Monitoring

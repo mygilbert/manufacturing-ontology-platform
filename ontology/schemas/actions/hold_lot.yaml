@@ -1,0 +1,54 @@
+# HoldLot Action Type
+# Lot 홀드 / 홀드 해제
+#
+# 생산에 직접 영향을 주는 액션이므로 사유가 필수이고,
+# 에이전트가 자동 실행할 수 없다 (requiresHumanConfirmation).
+
+actionType: HoldLot
+version: "1.0.0"
+description: "품질 이상이 의심되는 Lot을 홀드하거나 홀드를 해제한다"
+
+appliesTo:
+  - Lot
+
+parameters:
+  lot_id:
+    type: string
+    required: true
+    description: "대상 Lot ID"
+
+  hold:
+    type: boolean
+    required: true
+    description: "true면 홀드, false면 홀드 해제"
+
+  hold_code:
+    type: string
+    required: false
+    description: "홀드 사유 코드 (사내 코드 체계)"
+
+  triggered_by_alarm_id:
+    type: string
+    required: false
+    description: "이 홀드를 유발한 알람 ID (추적용)"
+
+permissions:
+  roles:
+    - process_engineer
+    - shift_supervisor
+    - quality_engineer
+
+audit:
+  reasonRequired: true
+
+# 에이전트가 사람 확인 없이 실행할 수 없는 액션
+requiresHumanConfirmation: true
+
+sideEffects:
+  - "Lot.status를 ON_HOLD로 변경 (해제 시 이전 상태로 복원)"
+  - "후속 공정 진행 차단"
+  - "품질 담당자 알림"
+
+guidance: >
+  배치(시간 단위) 수집 구조에서는 탐지 지연이 1~2시간이므로
+  이 액션으로 실시간 차단을 기대할 수 없다. 사후 격리와 추적이 목적이다.

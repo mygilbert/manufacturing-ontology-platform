@@ -1,0 +1,63 @@
+# RecordExpertRelationship Action Type
+# 전문가 지식 관계 직접 등록 (계층2)
+#
+# 데이터에 없는 관계를 사람이 직접 넣는 경로.
+# 통계 발견(계층3)과 구분하기 위해 origin=expert로 고정되고,
+# 입력 즉시 verified 상태가 된다 (사람이 근거이므로).
+
+actionType: RecordExpertRelationship
+version: "1.0.0"
+description: "엔지니어가 도메인 지식에 기반한 관계를 온톨로지에 직접 등록한다"
+
+appliesTo:
+  - Relationship
+
+parameters:
+  source:
+    type: string
+    required: true
+    description: "원인 파라미터/객체"
+
+  target:
+    type: string
+    required: true
+    description: "결과 파라미터/객체"
+
+  relation_type:
+    type: string
+    required: true
+    description: "관계 타입"
+    values:
+      - CAUSES
+      - INFLUENCES
+      - PRECEDES
+      - IMPOSSIBLE      # 불가능한 관계 (통계 발견의 오탐 필터로 사용)
+
+  lag_seconds:
+    type: number
+    required: false
+    description: >
+      시차(초). lag 없는 인과관계는 점검 순서를 만들 수 없어 쓸모가 적다.
+      IMPOSSIBLE이 아니면 가급적 채운다.
+    minimum: 0
+
+  confidence:
+    type: number
+    required: false
+    description: "전문가 확신도 (0~1)"
+    minimum: 0
+    maximum: 1
+    default: 0.9
+
+permissions:
+  roles:
+    - process_engineer
+    - equipment_engineer
+    - ontology_admin
+
+audit:
+  reasonRequired: true
+
+sideEffects:
+  - "origin=expert, verification_status=verified 로 관계 생성"
+  - "IMPOSSIBLE 관계는 통계 발견 결과의 오탐 필터로 즉시 반영된다"

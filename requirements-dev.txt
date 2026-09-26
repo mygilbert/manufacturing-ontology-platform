@@ -1,0 +1,14 @@
+# ============================================================
+# 개발/테스트 의존성
+#   pip install -r requirements-dev.txt
+#   pytest
+# ============================================================
+pytest>=8.0.0
+PyYAML>=6.0
+
+# API 레이어 테스트(tests/test_auth.py)에 필요.
+# 없으면 해당 테스트는 자동으로 skip 된다.
+fastapi>=0.104.0
+python-jose[cryptography]>=3.3.0
+pydantic-settings>=2.1.0
+httpx>=0.25.0

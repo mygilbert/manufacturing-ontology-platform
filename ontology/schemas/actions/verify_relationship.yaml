@@ -1,0 +1,63 @@
+# VerifyRelationship Action Type
+# 통계로 발견된 관계를 전문가가 검증/거부하는 액션
+#
+# 이 프로젝트에서 가장 전형적인 Action이다.
+# "누가, 언제, 무엇을, 어떤 근거로 검증했는가"가 반드시 남아야 하는
+# 통제된 상태 변경이기 때문이다. 이것이 남지 않으면 그래프의 관계를
+# 신뢰할 근거가 사라진다.
+
+actionType: VerifyRelationship
+version: "1.0.0"
+description: "발견된 관계의 검증 상태를 변경한다 (pending -> verified/rejected)"
+
+appliesTo:
+  - Relationship
+
+parameters:
+  source:
+    type: string
+    required: true
+    description: "관계 시작 파라미터/객체 이름"
+
+  target:
+    type: string
+    required: true
+    description: "관계 끝 파라미터/객체 이름"
+
+  relation_type:
+    type: string
+    required: true
+    description: "관계 타입 (CORRELATES_WITH, CAUSES 등)"
+    pattern: "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+
+  decision:
+    type: string
+    required: true
+    description: "검증 결과"
+    values:
+      - verified
+      - rejected
+
+  notes:
+    type: string
+    required: false
+    description: "검증 근거 메모 (물리적 타당성, 재현 여부 등)"
+
+permissions:
+  roles:
+    - process_engineer
+    - equipment_engineer
+    - ontology_admin
+
+audit:
+  reasonRequired: true
+
+sideEffects:
+  - "verification_status, verified_by, verified_at 갱신"
+  - "rejected인 경우 해당 관계는 Agent 추론에서 제외된다"
+
+# 검증 절차 메모 (docs/06_표준_적용_가이드.md 7장)
+guidance: >
+  통계 신뢰도만으로 승격하지 않는다. 전문가 지식의 "불가능한 관계" 필터,
+  물리적 타당성(lag 방향이 공정 순서와 모순되지 않는가), 재현성을
+  확인한 뒤 결정한다.

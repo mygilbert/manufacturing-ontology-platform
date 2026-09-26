@@ -130,6 +130,35 @@ PUT  /api/agent/prompt
 | **[05_역량질문](docs/05_역량질문.md)** | 온톨로지가 답해야 할 질문 목록 (요구사항이자 평가 기준) |
 | **[06_표준_적용_가이드](docs/06_표준_적용_가이드.md)** | SEMI/ISA-95/SOSA 적용, 관계 메타데이터 규약 |
 | **[07_개선_로드맵](docs/07_개선_로드맵.md)** | 실데이터 연동 전 과제, 배치/스트리밍 판단 기준 |
+| **[08_액션_계층](docs/08_액션_계층.md)** | Kinetic Layer - 상태 변경의 유일한 경로, 권한/감사/시뮬레이션 |
+
+## Action 계층 (Kinetic Layer)
+
+팔란티어 Foundry 온톨로지의 3계층 중 **운동 계층**에 해당한다.
+
+> **상태 변경은 오직 Action을 통해서만 일어난다.**
+> 서비스가 DB에 직접 쓰면 누가 무엇을 왜 바꿨는지 알 수 없고,
+> 권한도 감사도 시뮬레이션도 불가능해진다.
+
+```
+GET  /api/actions                         액션 타입 목록
+POST /api/actions/{type}/simulate         쓰기 없이 예상 결과만
+POST /api/actions/{type}                  수행 (인증 필수, 전건 감사)
+GET  /api/actions/audit/recent            감사 기록 (거부된 시도 포함)
+```
+
+| 액션 | 대상 | 사유 필수 |
+|---|---|---|
+| `VerifyRelationship` | 발견된 관계 검증/거부 | O |
+| `RecordExpertRelationship` | 전문가 지식 관계 등록 | O |
+| `AcknowledgeAlarm` | 알람 확인/에스컬레이션 | X |
+| `UpdateEquipmentState` | SEMI E10 상태 전이 (전이 규칙 검증) | O |
+| `HoldLot` | Lot 홀드/해제 (사람 확인 필요) | O |
+| `RequestInspection` | 점검 지시 생성 (사람 확인 필요) | O |
+
+모든 시도는 `action_audit` 테이블에 기록된다 — 누가, 언제, 무엇을, 왜,
+무엇이 바뀌었나(before/after). 자세한 내용은
+**[docs/08_액션_계층.md](docs/08_액션_계층.md)** 참조.
 
 ## 온톨로지 모델
 
@@ -274,10 +303,19 @@ docker compose --profile cdc --profile streaming up
 배치(Parquet 시간 단위 수집) 구조에서는 기본 프로파일만으로 동작한다.
 스트리밍 전환 판단 기준은 `docs/07_개선_로드맵.md` 참조.
 
-### 3-2. 테스트
+### 3-2. 인증
+
+Action 엔드포인트는 인증이 필수다 (JWT Bearer).
+로컬 개발 중에는 아래로 우회할 수 있으나 **운영에서는 반드시 꺼야 한다.**
 
 ```bash
-pip install pytest
+export AUTH_DEV_MODE=true   # 토큰 없이 고정 주체(dev.user)로 동작
+```
+
+### 3-3. 테스트
+
+```bash
+pip install -r requirements-dev.txt
 pytest            # 리포지토리 루트에서 실행
 ```
 

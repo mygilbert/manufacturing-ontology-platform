@@ -1,0 +1,43 @@
+# AcknowledgeAlarm Action Type
+# 알람 확인 처리
+
+actionType: AcknowledgeAlarm
+version: "1.0.0"
+description: "발생한 알람을 확인 처리하고 조치 내용을 기록한다"
+
+appliesTo:
+  - Alarm
+
+parameters:
+  alarm_id:
+    type: string
+    required: true
+    description: "확인할 알람 ID"
+
+  action_taken:
+    type: string
+    required: false
+    description: "수행한 조치 내용"
+
+  escalate_to:
+    type: string
+    required: false
+    description: "에스컬레이션 대상 (지정 시 상위 담당자에게 이관)"
+
+permissions:
+  roles:
+    - operator
+    - process_engineer
+    - equipment_engineer
+    - shift_supervisor
+
+audit:
+  reasonRequired: false
+
+sideEffects:
+  - "알람 상태를 ACKNOWLEDGED로 변경"
+  - "escalate_to 지정 시 ESCALATED로 변경하고 담당자 알림"
+
+guidance: >
+  기존 프론트엔드(useStore.ts)가 acknowledged_by를 'current_user'로
+  하드코딩하고 있었다. 이 액션을 거치면 실제 수행자가 기록된다.

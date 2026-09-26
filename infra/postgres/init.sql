@@ -322,6 +322,46 @@ ORDER BY (properties->>'occurred_at')::timestamptz DESC
 LIMIT 100;
 
 -- ============================================================
+-- Action 감사 기록 (Kinetic Layer)
+-- ============================================================
+-- 온톨로지의 모든 상태 변경은 Action을 거치고, 여기에 기록된다.
+-- 거부된 시도(권한/검증 실패)도 남긴다. "누가 무엇을 하려다 막혔는가"가
+-- "누가 무엇을 했는가"만큼 중요하기 때문이다.
+
+CREATE TABLE IF NOT EXISTS action_audit (
+    audit_id          TEXT PRIMARY KEY,
+    action_type       TEXT        NOT NULL,
+    principal_id      TEXT        NOT NULL,
+    principal_roles   TEXT[]      NOT NULL DEFAULT '{}',
+    parameters        JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    reason            TEXT,
+    dry_run           BOOLEAN     NOT NULL DEFAULT FALSE,
+    succeeded         BOOLEAN     NOT NULL,
+    changes           JSONB       NOT NULL DEFAULT '[]'::jsonb,
+    error             TEXT,
+    occurred_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    on_behalf_of      TEXT,
+    is_agent          BOOLEAN     NOT NULL DEFAULT FALSE,
+    client_request_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_action_audit_occurred_at
+    ON action_audit (occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_action_audit_action_type
+    ON action_audit (action_type, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_action_audit_principal
+    ON action_audit (principal_id, occurred_at DESC);
+-- 실패/거부 이력만 빠르게 보기 위한 부분 인덱스
+CREATE INDEX IF NOT EXISTS idx_action_audit_failures
+    ON action_audit (occurred_at DESC) WHERE succeeded = FALSE;
+-- 특정 객체의 변경 이력 추적용
+CREATE INDEX IF NOT EXISTS idx_action_audit_changes
+    ON action_audit USING GIN (changes);
+
+COMMENT ON TABLE action_audit IS
+    'Action 계층 감사 기록. 상태 변경은 Action을 통해서만 일어난다.';
+
+-- ============================================================
 -- 완료 메시지
 -- ============================================================
 
@@ -329,5 +369,6 @@ DO $$
 BEGIN
     RAISE NOTICE 'Manufacturing Ontology 스키마 초기화 완료';
     RAISE NOTICE '- Vertex Labels: Equipment, Process, Lot, Wafer, Recipe, Measurement, Alarm';
+    RAISE NOTICE '- Action 감사 테이블: action_audit';
     RAISE NOTICE '- Edge Labels: PROCESSED_AT, MEASURED_BY, BELONGS_TO, GENERATES_ALARM, USES_RECIPE, FOLLOWS_ROUTE, NEXT_STEP, AFFECTS_LOT, CONTAINS_WAFER';
 END $$;
