@@ -12,3 +12,8 @@ fastapi>=0.104.0
 python-jose[cryptography]>=3.3.0
 pydantic-settings>=2.1.0
 httpx>=0.25.0
+
+# 계보 데모 (scripts/demo_genealogy_queries.py)
+# DB 구축 없이 Parquet 를 직접 질의한다
+duckdb>=1.0.0
+pyarrow>=14.0.0

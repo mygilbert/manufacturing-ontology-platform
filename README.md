@@ -169,6 +169,31 @@ ontology/schemas/
 | **[08_액션_계층](docs/08_액션_계층.md)** | Kinetic Layer - 상태 변경의 유일한 경로, 권한/감사/시뮬레이션 |
 | **[10_배터리_추적성_설계](docs/10_배터리_추적성_설계.md)** | 연속↔이산 계보, 전극 Lot 전환점, 추적 신뢰도, 여권 연계 |
 
+## 계보 데모 — 설계가 실제로 작동하는지 확인
+
+실데이터가 없어도 온톨로지 설계를 검증할 수 있다.
+합성 데이터에 코팅 두께 이상을 심어두고, 계보를 타고 **스스로 찾아내는지**
+확인한다. DB 구축 없이 Parquet 를 DuckDB 로 직접 질의한다.
+
+```bash
+pip install duckdb pyarrow pandas numpy
+python scripts/generate_battery_genealogy.py    # landing/ 에 Parquet 생성
+python scripts/demo_genealogy_queries.py        # 계보 질의 실행
+```
+
+생성되는 데이터는 실제 수집 형태와 동일하다 —
+`landing/<table>/dt=YYYY-MM-DD/hour=HH/*.parquet` + `_SUCCESS` 마커.
+
+| 질의 | 확인하는 것 |
+|---|---|
+| Q1 | 구간 조인 — 연속 좌표계와 이산 좌표계가 연결되는가 |
+| Q2 | **역추적** — 불량 셀에서 원인 롤 구간을 찾아내는가 (근본원인) |
+| Q3 | **순추적** — 이상 구간이 들어간 셀/모듈/팩 (격리·리콜 범위) |
+| Q4 | 추적 신뢰도별 분리 — 추정 계보가 결론을 오염시키지 않는가 |
+| Q5 | 위치 신뢰도 — 시간→위치 변환이 깨지는 구간 분리 |
+
+실데이터가 오면 바꿀 것은 테이블/컬럼명뿐이고 질의 구조는 그대로다.
+
 ## Action 계층 (Kinetic Layer)
 
 팔란티어 Foundry 온톨로지의 3계층 중 **운동 계층**에 해당한다.
