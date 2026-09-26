@@ -1,0 +1,619 @@
+# 배터리 계보 온톨로지 — 역량질문 평가 스위트
+#
+# 원천: docs/05_역량질문.md
+# 실행: python scripts/run_evals.py
+#
+# [읽는 법]
+#   PASS    지금 답한다
+#   FAIL    답하는데 기준에 못 미친다
+#   미구현   아직 답할 수 없다. 실패가 아니라 남은 과제다 (분모에는 포함)
+#
+# 둘을 뭉치면 진척을 볼 수 없다. n/전체 가 올라가는 궤적이 이 스위트의 목적이다.
+#
+# [중요] 온톨로지를 바꾸는 케이스는 항상 dry_run 으로 실행된다.
+#        평가가 실제 상태를 오염시키면 그 평가는 한 번밖에 못 쓴다.
+
+suite: competency_battery
+version: "1.0.0"
+description: "연속↔이산 계보가 실제로 질의에 답하는지 검증"
+
+cases:
+
+# ======================================================================
+# A. 추적성 — 제품 축과 설비 축을 잇는 질문
+# ======================================================================
+
+- id: A1
+  question: "이 셀에 투입된 양극/음극 전극 Lot 을 모두 나열하라"
+  priority: P0
+  category: traceability
+  target:
+    type: sql
+    query: |
+      SELECT s.cell_id, s.electrode_role, s.electrode_lot_id,
+             l.roll_id, l.position_start_m, l.position_end_m
+      FROM supplies_cell s
+      JOIN electrode_lots l USING (electrode_lot_id)
+      WHERE s.cell_id = (SELECT MIN(cell_id) FROM cells)
+      ORDER BY s.electrode_role
+  graders:
+    # 셀 하나에는 양극과 음극이 각각 들어간다. 1행이면 한쪽 계보가 끊긴 것이다.
+    - type: row_count
+      min: 2
+    - type: column_values_include
+      column: electrode_role
+      values: [CATHODE, ANODE]
+    - type: columns_present
+      columns: [roll_id, position_start_m, position_end_m]
+
+- id: A2
+  question: "전극 Lot 이 잘려 나온 롤 구간(m)을 특정할 수 있는가"
+  priority: P0
+  category: traceability
+  target:
+    type: sql
+    query: |
+      SELECT COUNT(*) AS lots,
+             SUM(CASE WHEN position_start_m IS NULL
+                       OR position_end_m IS NULL THEN 1 ELSE 0 END) AS missing_range
+      FROM electrode_lots
+  graders:
+    - type: value_between
+      column: missing_range
+      max: 0
+
+- id: A3
+  question: "셀에서 모듈, 팩까지 계보가 이어지는가"
+  priority: P0
+  category: traceability
+  target:
+    type: sql
+    query: |
+      SELECT c.cell_id, mc.module_id, pm.pack_id
+      FROM cells c
+      JOIN module_cells mc ON mc.cell_id = c.cell_id
+      JOIN pack_modules pm ON pm.module_id = mc.module_id
+      LIMIT 10
+  graders:
+    - type: row_count
+      min: 10
+    - type: columns_present
+      columns: [cell_id, module_id, pack_id]
+
+- id: A4
+  question: "계보가 롤 위치까지 완결된 셀의 비율은"
+  priority: P1
+  category: traceability
+  target:
+    type: sql
+    query: |
+      SELECT ROUND(100.0 * SUM(CASE WHEN genealogy_complete THEN 1 ELSE 0 END)
+                   / COUNT(*), 1) AS complete_pct
+      FROM cells
+  graders:
+    # 80% 미만이면 구간 단위 분석의 신뢰도가 떨어진다
+    - type: value_between
+      column: complete_pct
+      min: 80
+
+- id: A5
+  question: "특정 롤 구간에서 나온 전극 Lot 을 찾을 수 있는가 (구간 겹침)"
+  priority: P0
+  category: traceability
+  target:
+    type: sql
+    query: |
+      SELECT electrode_lot_id, lane_no, position_start_m, position_end_m
+      FROM electrode_lots
+      WHERE roll_id = 'R-CA-20260901-001'
+        AND position_start_m < 140 AND position_end_m > 120
+      ORDER BY lane_no, position_start_m
+  graders:
+    - type: not_empty
+
+# ======================================================================
+# B. 이상 감지 · 원인 추적
+# ======================================================================
+
+- id: B1
+  question: "규격 상한을 넘은 연속 구간을 데이터에서 찾아낼 수 있는가"
+  priority: P0
+  category: anomaly
+  target:
+    type: sql
+    query: |
+      WITH f AS (
+        SELECT roll_id, lane_no, position_m,
+               CASE WHEN value > usl THEN 1 ELSE 0 END AS over
+        FROM web_measurements WHERE observed_property = 'coating_thickness'),
+      g AS (
+        SELECT roll_id, lane_no, position_m,
+               position_m - LAG(position_m) OVER (
+                 PARTITION BY roll_id, lane_no ORDER BY position_m) AS gap
+        FROM f WHERE over = 1),
+      i AS (
+        SELECT roll_id, lane_no, position_m,
+               SUM(CASE WHEN gap IS NULL OR gap > 2 THEN 1 ELSE 0 END) OVER (
+                 PARTITION BY roll_id, lane_no ORDER BY position_m
+                 ROWS UNBOUNDED PRECEDING) AS island_id
+        FROM g)
+      SELECT roll_id, lane_no, island_id,
+             MIN(position_m) AS start_m, MAX(position_m) AS end_m, COUNT(*) AS n
+      FROM i GROUP BY roll_id, lane_no, island_id
+      HAVING COUNT(*) >= 4 AND MAX(position_m) - MIN(position_m) >= 2
+      ORDER BY n DESC
+  graders:
+    - type: row_count
+      min: 1
+      # 산발적 초과를 구간으로 잡으면 롤마다 하나씩 나온다.
+      # 연속 구간 탐지가 제대로 되면 소수만 남아야 한다.
+      max: 3
+    - type: value_between
+      column: start_m
+      min: 115
+      max: 130
+
+- id: B2
+  question: "불량 셀에서 출발해 원인 전극 Lot 을 1순위로 지목하는가"
+  priority: P0
+  category: anomaly
+  note: "역추적의 핵심. 이상 위치를 알려주지 않고 스스로 찾아야 한다"
+  target:
+    type: sql
+    query: |
+      WITH low AS (
+        SELECT cell_id, value AS cap FROM cell_tests
+        WHERE test_type = 'EOL_CAPACITY' ORDER BY value LIMIT 60),
+      lt AS (
+        SELECT l.electrode_lot_id AS id, l.roll_id, l.lane_no,
+               l.position_start_m, l.position_end_m,
+               SUM(CASE WHEN m.value > m.usl THEN 1 ELSE 0 END) AS over_usl
+        FROM electrode_lots l
+        LEFT JOIN web_measurements m
+               ON m.roll_id = l.roll_id AND m.lane_no = l.lane_no
+              AND m.position_m >= l.position_start_m
+              AND m.position_m <  l.position_end_m
+              AND m.observed_property = 'coating_thickness'
+        GROUP BY ALL)
+      SELECT lt.id, lt.roll_id, lt.lane_no, lt.position_start_m, lt.over_usl,
+             COUNT(*) AS bad_cells, ROUND(AVG(low.cap), 2) AS avg_capacity
+      FROM low
+      JOIN supplies_cell sc ON sc.cell_id = low.cell_id
+                           AND sc.electrode_role = 'CATHODE'
+      JOIN lt ON lt.id = sc.electrode_lot_id
+      GROUP BY ALL
+      ORDER BY bad_cells DESC, avg_capacity ASC
+  graders:
+    - type: not_empty
+    # 1순위가 규격 이탈 구간을 포함한 Lot 이어야 한다
+    - type: value_between
+      column: over_usl
+      min: 1
+
+- id: B3
+  question: "이상 구간이 들어간 셀·모듈·팩을 모두 찾을 수 있는가 (순추적)"
+  priority: P0
+  category: anomaly
+  note: "격리·리콜 범위 산정. 배터리 여권 추적성과 같은 경로"
+  target:
+    type: sql
+    query: |
+      WITH f AS (
+        SELECT roll_id, lane_no, position_m,
+               CASE WHEN value > usl THEN 1 ELSE 0 END AS over
+        FROM web_measurements WHERE observed_property = 'coating_thickness'),
+      g AS (
+        SELECT roll_id, lane_no, position_m,
+               position_m - LAG(position_m) OVER (
+                 PARTITION BY roll_id, lane_no ORDER BY position_m) AS gap
+        FROM f WHERE over = 1),
+      i AS (
+        SELECT roll_id, lane_no, position_m,
+               SUM(CASE WHEN gap IS NULL OR gap > 2 THEN 1 ELSE 0 END) OVER (
+                 PARTITION BY roll_id, lane_no ORDER BY position_m
+                 ROWS UNBOUNDED PRECEDING) AS island_id
+        FROM g),
+      bad AS (
+        SELECT roll_id, lane_no, MIN(position_m) s, MAX(position_m) e
+        FROM i GROUP BY roll_id, lane_no, island_id
+        HAVING COUNT(*) >= 4 AND MAX(position_m) - MIN(position_m) >= 2),
+      al AS (
+        SELECT DISTINCT l.electrode_lot_id AS id
+        FROM electrode_lots l JOIN bad b
+          ON b.roll_id = l.roll_id AND b.lane_no = l.lane_no
+         AND l.position_start_m < b.e AND l.position_end_m > b.s)
+      SELECT COUNT(DISTINCT s.cell_id) AS cells,
+             COUNT(DISTINCT mc.module_id) AS modules,
+             COUNT(DISTINCT pm.pack_id) AS packs,
+             ROUND(100.0 * COUNT(DISTINCT s.cell_id)
+                   / (SELECT COUNT(*) FROM cells), 1) AS cell_pct
+      FROM al
+      JOIN supplies_cell s ON s.electrode_lot_id = al.id
+      LEFT JOIN module_cells mc ON mc.cell_id = s.cell_id
+      LEFT JOIN pack_modules pm ON pm.module_id = mc.module_id
+  graders:
+    - type: value_between
+      column: cells
+      min: 1
+    # 영향 범위가 전체의 10% 를 넘으면 구간 탐지가 부풀려진 것이다.
+    # (실제로 겪은 버그 — MIN/MAX 로 구간을 잡으면 28.8% 가 나온다)
+    - type: value_between
+      column: cell_pct
+      max: 10
+    - type: value_between
+      column: packs
+      min: 1
+
+- id: B4
+  question: "영향받은 셀과 나머지 셀의 용량 차이가 통계적으로 유의한가"
+  priority: P1
+  category: anomaly
+  target:
+    type: sql
+    query: |
+      WITH f AS (
+        SELECT roll_id, lane_no, position_m,
+               CASE WHEN value > usl THEN 1 ELSE 0 END AS over
+        FROM web_measurements WHERE observed_property = 'coating_thickness'),
+      g AS (
+        SELECT roll_id, lane_no, position_m,
+               position_m - LAG(position_m) OVER (
+                 PARTITION BY roll_id, lane_no ORDER BY position_m) AS gap
+        FROM f WHERE over = 1),
+      i AS (
+        SELECT roll_id, lane_no, position_m,
+               SUM(CASE WHEN gap IS NULL OR gap > 2 THEN 1 ELSE 0 END) OVER (
+                 PARTITION BY roll_id, lane_no ORDER BY position_m
+                 ROWS UNBOUNDED PRECEDING) AS island_id
+        FROM g),
+      bad AS (
+        SELECT roll_id, lane_no, MIN(position_m) s, MAX(position_m) e
+        FROM i GROUP BY roll_id, lane_no, island_id
+        HAVING COUNT(*) >= 4 AND MAX(position_m) - MIN(position_m) >= 2),
+      aff AS (
+        SELECT DISTINCT s.cell_id
+        FROM electrode_lots l JOIN bad b
+          ON b.roll_id = l.roll_id AND b.lane_no = l.lane_no
+         AND l.position_start_m < b.e AND l.position_end_m > b.s
+        JOIN supplies_cell s ON s.electrode_lot_id = l.electrode_lot_id),
+      st AS (
+        SELECT AVG(CASE WHEN a.cell_id IS NOT NULL THEN t.value END) m1,
+               AVG(CASE WHEN a.cell_id IS NULL THEN t.value END) m0,
+               STDDEV_SAMP(CASE WHEN a.cell_id IS NOT NULL THEN t.value END) s1,
+               STDDEV_SAMP(CASE WHEN a.cell_id IS NULL THEN t.value END) s0
+        FROM cell_tests t LEFT JOIN aff a ON a.cell_id = t.cell_id
+        WHERE t.test_type = 'EOL_CAPACITY')
+      SELECT ROUND(m0 - m1, 3) AS capacity_diff,
+             ROUND((m0 - m1) / SQRT((s1*s1 + s0*s0)/2), 2) AS cohens_d
+      FROM st
+  graders:
+    # Cohen's d >= 0.8 이면 큰 효과. 이 정도가 나와야 현장을 설득할 수 있다.
+    - type: value_between
+      column: cohens_d
+      min: 0.8
+
+- id: B5
+  question: "알람 발생 전후 파라미터 거동을 조회할 수 있는가"
+  priority: P0
+  category: anomaly
+  target:
+    type: not_implemented
+    note: "Alarm 객체가 배터리 프로파일에 아직 실체화되지 않았다 (스키마만 존재)"
+
+- id: B6
+  question: "같은 이상이 과거에도 있었나, 그때 원인은 무엇으로 판정됐나"
+  priority: P1
+  category: anomaly
+  target:
+    type: not_implemented
+    note: "이상 이력 저장소 미구현. 검증된 관계(verified)와 연결돼야 한다"
+
+- id: B7
+  question: "화성 채널별로 용량 편차가 유의하게 다른가"
+  priority: P1
+  category: anomaly
+  target:
+    type: sql
+    query: |
+      SELECT formation_channel,
+             COUNT(*) AS n,
+             ROUND(AVG(value), 3) AS avg_capacity
+      FROM cell_tests
+      WHERE test_type = 'EOL_CAPACITY' AND formation_channel IS NOT NULL
+      GROUP BY 1
+      HAVING COUNT(*) >= 5
+      ORDER BY avg_capacity ASC
+      LIMIT 10
+  graders:
+    - type: not_empty
+    - type: columns_present
+      columns: [formation_channel, avg_capacity]
+
+# ======================================================================
+# C. 품질 · SPC
+# ======================================================================
+
+- id: C1
+  question: "전극 Lot 단위로 코팅 두께 통계를 낼 수 있는가"
+  priority: P1
+  category: quality
+  target:
+    type: sql
+    query: |
+      SELECT l.electrode_lot_id,
+             COUNT(m.value) AS n_meas,
+             ROUND(AVG(m.value), 2) AS th_avg,
+             ROUND(STDDEV_SAMP(m.value), 3) AS th_sd
+      FROM electrode_lots l
+      JOIN web_measurements m
+        ON m.roll_id = l.roll_id AND m.lane_no = l.lane_no
+       AND m.position_m >= l.position_start_m
+       AND m.position_m <  l.position_end_m
+       AND m.observed_property = 'coating_thickness'
+      GROUP BY 1
+      ORDER BY th_sd DESC
+      LIMIT 20
+  graders:
+    - type: row_count
+      min: 20
+    - type: columns_present
+      columns: [th_avg, th_sd]
+
+- id: C2
+  question: "레인별 두께 편차가 구분되는가"
+  priority: P1
+  category: quality
+  note: "레인을 구분하지 않으면 편차가 평균에 묻힌다"
+  target:
+    type: sql
+    query: |
+      SELECT lane_no, COUNT(*) AS n, ROUND(AVG(value), 2) AS th_avg
+      FROM web_measurements
+      WHERE observed_property = 'coating_thickness'
+      GROUP BY 1 ORDER BY 1
+  graders:
+    - type: row_count
+      min: 2
+    - type: columns_present
+      columns: [lane_no, th_avg]
+
+- id: C3
+  question: "공정능력지수(Cpk)를 전극 Lot 단위로 산출할 수 있는가"
+  priority: P2
+  category: quality
+  target:
+    type: not_implemented
+    note: "analytics/src/spc/capability.py 는 있으나 계보 데이터와 연결되지 않았다"
+
+# ======================================================================
+# D. 설비 상태
+# ======================================================================
+
+- id: D1
+  question: "설비 상태를 통제된 경로로만 바꿀 수 있는가"
+  priority: P0
+  category: equipment
+  target:
+    type: action
+    action_type: UpdateEquipmentState
+    parameters:
+      equipment_id: "COATER-01"
+      to_state: "STANDBY"
+    reason: "PM 완료 후 대기 전환"
+    principal_roles: [equipment_engineer]
+  graders:
+    - type: action_succeeded
+    - type: dry_run_wrote_nothing
+    - type: changes_include
+      field: status
+      after: STANDBY
+
+- id: D2
+  question: "레거시 상태 코드(RUNNING)는 거부되는가"
+  priority: P1
+  category: equipment
+  note: "ISO 22400 기반 6상태로 전환했으므로 옛 코드는 막혀야 한다"
+  target:
+    type: action
+    action_type: UpdateEquipmentState
+    parameters:
+      equipment_id: "COATER-01"
+      to_state: "RUNNING"
+    reason: "레거시 코드 테스트"
+    principal_roles: [equipment_engineer]
+  graders:
+    - type: action_rejected
+
+- id: D3
+  question: "권한 없는 사용자의 상태 변경이 막히는가"
+  priority: P0
+  category: equipment
+  target:
+    type: action
+    action_type: UpdateEquipmentState
+    parameters:
+      equipment_id: "COATER-01"
+      to_state: "PRODUCTIVE"
+    reason: "권한 검증"
+    principal_roles: [operator]
+  graders:
+    - type: action_rejected
+      error_contains: "권한"
+
+# ======================================================================
+# E. 관계 · 지식 거버넌스
+# ======================================================================
+
+- id: E1
+  question: "관계 검증이 누가·언제·어떤 근거로 이루어졌는지 남는가"
+  priority: P0
+  category: governance
+  target:
+    type: action
+    action_type: VerifyRelationship
+    parameters:
+      source: "coating_thickness"
+      target: "cell_capacity"
+      relation_type: "CAUSES"
+      decision: "verified"
+      notes: "구간 겹침 분석에서 Cohen's d 1.68"
+    reason: "스텝 구간 내 재현 확인, 물리적으로 타당"
+    principal_roles: [process_engineer]
+  graders:
+    - type: action_succeeded
+    - type: dry_run_wrote_nothing
+    - type: changes_include
+      field: verified_by
+    - type: changes_include
+      field: verification_status
+      after: verified
+
+- id: E2
+  question: "사유 없이 관계를 검증할 수 없는가"
+  priority: P1
+  category: governance
+  target:
+    type: action
+    action_type: VerifyRelationship
+    parameters:
+      source: "a"
+      target: "b"
+      relation_type: "CAUSES"
+      decision: "verified"
+    principal_roles: [process_engineer]
+  graders:
+    - type: action_rejected
+
+- id: E3
+  question: "전문가 지식 관계를 origin=expert 로 등록할 수 있는가"
+  priority: P1
+  category: governance
+  target:
+    type: action
+    action_type: RecordExpertRelationship
+    parameters:
+      source: "coating_thickness"
+      target: "cell_capacity"
+      relation_type: "CAUSES"
+      lag_seconds: 0
+      confidence: 0.9
+    reason: "업계 공통 인과. 코팅 두께 변동이 용량 편차로 이어진다"
+    principal_roles: [process_engineer]
+  graders:
+    - type: action_succeeded
+    - type: changes_include
+      field: origin
+      after: expert
+
+- id: E4
+  question: "통계로 발견됐지만 미검증인 관계를 구분할 수 있는가"
+  priority: P0
+  category: governance
+  target:
+    type: not_implemented
+    note: "RelationshipStore 가 아직 그래프에 연결되지 않았다 (docs/07 P0-3)"
+
+- id: E5
+  question: "설비 개조 이후에도 유효한 관계인지 판별할 수 있는가"
+  priority: P1
+  category: governance
+  target:
+    type: not_implemented
+    note: "valid_from/valid_to 필드는 있으나 시점 질의가 구현되지 않았다"
+
+# ======================================================================
+# F. 데이터 품질 — 배치 수집에서 조용히 틀어지는 것
+# ======================================================================
+
+- id: F1
+  question: "전극 Lot 에 붙지 않은 측정값이 있는가 (조인 실패율)"
+  priority: P0
+  category: data_quality
+  note: "결과가 0행이어야 통과. 붙지 않는 측정값은 계보 구멍이다"
+  target:
+    type: sql
+    query: |
+      SELECT l.electrode_lot_id
+      FROM electrode_lots l
+      LEFT JOIN web_measurements m
+        ON m.roll_id = l.roll_id AND m.lane_no = l.lane_no
+       AND m.position_m >= l.position_start_m
+       AND m.position_m <  l.position_end_m
+       AND m.observed_property = 'coating_thickness'
+      GROUP BY 1
+      HAVING COUNT(m.value) = 0
+  graders:
+    - type: no_rows
+
+- id: F2
+  question: "추적 신뢰도 수준별로 셀을 분리할 수 있는가"
+  priority: P0
+  category: data_quality
+  note: "섞으면 추정 계보가 결론을 오염시킨다. 낮은 쪽을 따라야 한다"
+  target:
+    type: sql
+    query: |
+      WITH cl AS (
+        SELECT s.cell_id,
+               MAX(CASE l.traceability_level
+                     WHEN 'MEASURED' THEN 0 WHEN 'INFERRED' THEN 1
+                     WHEN 'ROLL_ONLY' THEN 2 ELSE 3 END) AS worst
+        FROM supplies_cell s
+        JOIN electrode_lots l USING (electrode_lot_id)
+        GROUP BY 1)
+      SELECT CASE worst WHEN 0 THEN 'MEASURED' WHEN 1 THEN 'INFERRED'
+                        WHEN 2 THEN 'ROLL_ONLY' ELSE 'UNKNOWN' END AS level,
+             COUNT(*) AS n
+      FROM cl GROUP BY 1 ORDER BY n DESC
+  graders:
+    - type: not_empty
+    - type: all_rows_match
+      column: level
+      allowed: [MEASURED, INFERRED, ROLL_ONLY, UNKNOWN]
+    # 셀이 중복 계수되면 합계가 전체 셀 수를 넘는다 (실제로 겪은 버그)
+    - type: value_between
+      column: n
+      max: 1300
+
+- id: F3
+  question: "위치 변환이 깨지는 구간(가감속·정지)을 분리할 수 있는가"
+  priority: P0
+  category: data_quality
+  target:
+    type: sql
+    query: |
+      SELECT segment_type, confidence, COUNT(*) AS n
+      FROM roll_position_map
+      GROUP BY 1, 2 ORDER BY 1
+  graders:
+    - type: not_empty
+    - type: column_values_include
+      column: confidence
+      values: [LOW]
+
+- id: F4
+  question: "타임스탬프 시간대가 소스 간에 일관되는가"
+  priority: P0
+  category: data_quality
+  target:
+    type: not_implemented
+    note: "합성 데이터는 단일 소스라 검증할 수 없다. 실데이터 도착 시 활성화"
+
+- id: F5
+  question: "어느 배치 파일까지 처리됐고 실패한 것은 무엇인가"
+  priority: P0
+  category: data_quality
+  target:
+    type: not_implemented
+    note: "ingest_log 미구현 (docs/07 P0-4)"
+
+- id: F6
+  question: "레인을 특정하지 못한 전극 Lot 이 있는가"
+  priority: P1
+  category: data_quality
+  target:
+    type: sql
+    query: |
+      SELECT electrode_lot_id FROM electrode_lots WHERE lane_no IS NULL
+  graders:
+    - type: no_rows

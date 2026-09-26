@@ -52,3 +52,7 @@ config/site/**
 
 # 데이터 프로파일 산출물 (비식별이더라도 기본 제외)
 profiles_out/
+
+# 평가 결과. 리포트의 evidence 에 실데이터 식별자(Lot ID 등)가 담길 수 있다.
+# 스위트 정의(evals/suites/)는 코어 자산이므로 추적한다.
+evals/results/

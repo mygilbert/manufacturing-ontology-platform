@@ -170,6 +170,39 @@ ontology/schemas/
 | **[09_배포_경계](docs/09_배포_경계.md)** | 코어와 사이트의 분리, 반출 가능·불가 기준, 기계적 방어 |
 | **[10_배터리_추적성_설계](docs/10_배터리_추적성_설계.md)** | 연속↔이산 계보, 전극 Lot 전환점, 추적 신뢰도, 여권 연계 |
 | **[11_AIP_구성_분석](docs/11_AIP_구성_분석.md)** | Palantir AIP 12계층 구성, 우리 구현과의 대조, 가져올 것과 버릴 것 |
+| **[12_평가_프레임](docs/12_평가_프레임.md)** | 역량질문 평가 스위트 — 지금 몇 개에 답하는가 |
+
+## 평가 — 지금 몇 개에 답하는가
+
+역량질문(docs/05)을 평가 스위트로 만들어 진척을 숫자로 잰다.
+**온톨로지를 바꾸는 케이스는 시뮬레이션(dry_run)으로 실행**되므로
+평가가 실제 상태를 바꾸지 않는다.
+
+```bash
+pip install duckdb pyarrow pyyaml
+python scripts/generate_battery_genealogy.py   # 합성 데이터 (없으면)
+python scripts/run_evals.py
+```
+
+```
+합격률  22/29  (75.9%)
+상태    PASS 22   미구현 7
+
+  P0  13/17 (76.5%)    traceability  5/5  (100%)
+  P1   9/11 (81.8%)    equipment     3/3  (100%)
+  P2   0/1  ( 0.0%)    governance    3/5  ( 60%)
+```
+
+`NOT_IMPLEMENTED`(미구현)는 실패가 아니라 남은 과제이며 **분모에 포함된다.**
+둘을 뭉치면 진척을 볼 수 없다. 미구현 7건 중 실데이터가 필요한 것은 1건뿐이다.
+
+실데이터가 오면 스위트를 고치지 않고 `--landing` 만 바꾼다.
+
+```bash
+python scripts/run_evals.py --landing /path/to/site/landing
+```
+
+자세한 내용은 **[docs/12_평가_프레임.md](docs/12_평가_프레임.md)** 참조.
 
 ## 사내 데이터 연결
 
